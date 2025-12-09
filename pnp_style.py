@@ -67,7 +67,7 @@ class PNP(nn.Module):
         tgt_subject = ""
         text_prompt_input = ""
         cond_image = load_img1(self,style_file)
-        guidance_scale = 7.5 #previously 7.5
+        guidance_scale = self.config.guidance_scale #previously 7.5
         #previous code:num_inference_steps = 50
         num_inference_steps = self.config.ddim_steps
         negative_prompt = "over-exposure, under-exposure, saturated, duplicate, out of frame, lowres, cropped, worst quality, low quality, jpeg artifacts, morbid, mutilated, out of frame, ugly, bad anatomy, bad proportions, deformed, blurry, duplicate"
@@ -425,3 +425,4 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
