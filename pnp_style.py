@@ -362,7 +362,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             starting_point = 0.5
             Ramp_start = int(num_inference_steps *starting_point) #starts at start percent
             Ramp_end = int(num_inference_steps)
-            Max_scale = self.textile_guidance_scale
+            Max_scale = self.textile_metric
 
             current_textile_scale = 0.0
             if i>= Ramp_start:
@@ -441,6 +441,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
 
 
 
