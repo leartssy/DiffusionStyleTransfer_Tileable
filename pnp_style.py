@@ -347,13 +347,14 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             Ramp_start = Textile_start_step #starts at start percent
             Ramp_end = int(num_inference_steps-1)
             Max_scale = self._textile_guidance_scale
+            Textile_skip = 10
 
             current_textile_scale = 0.0
             if i>= Ramp_start:
                   ramp_progress = (i-Ramp_start) / (Ramp_end - Ramp_start)
                   ramp_progress = min(1.0,ramp_progress)
                   current_textile_scale = Max_scale * ramp_progress
-            if self.textile_metric is not None and self._textile_guidance_scale > 0: # Use a new guidance scale for the metric
+            if self.textile_metric is not None and self._textile_guidance_scale > 0 and (i % Textile_skip == 0): # Use a new guidance scale for the metric
               #Only activate TexTile during the style-focused steps ---
                 if i >= Textile_start_step:
                   # 1. Decode the current latents to pixel space (required by TexTile)
