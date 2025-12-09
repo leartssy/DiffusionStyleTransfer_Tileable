@@ -398,7 +398,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                       alpha_cumprod = self.scheduler.alphas_cumprod[i]
                       sigma = torch.sqrt(1 - alpha_cumprod)
                       #test
-                      grad_scaled = grad * 500.0
+                      grad_scaled = grad * 1000.0
                       # 4. Apply the guidance as an additional noise prediction component
                       noise_pred = noise_pred + self._textile_guidance_scale * grad_scaled.to(noise_pred.dtype) * sigma
                       #for debugging
@@ -426,6 +426,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
 
 
 
