@@ -194,6 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('--ddpm_steps', type=int, default=999)
     parser.add_argument('--steps_to_save', type=int, default=1000)
     parser.add_argument('--ddim_steps', type=int, default=50)
+    parser.add_argument('--guidance_scale', type=float, default=7.5)
     #not hardcoded model key
     parser.add_argument('--model_key', type=str, required=True, help='Path to the directory containing the pretrained model files (e.g., blipdiffusion folder).')
     #Textile
@@ -205,3 +206,4 @@ if __name__ == "__main__":
     opt = parser.parse_args()
 
     run(opt)
+
