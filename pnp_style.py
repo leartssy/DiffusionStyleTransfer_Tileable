@@ -358,7 +358,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                   ramp_progress = min(1.0,ramp_progress)
                   current_textile_scale = Max_scale * ramp_progress
 
-            is_textile_step = (i5 Textile_skip == 0) or (i == num_inference_steps - 1)
+            is_textile_step = (i % Textile_skip == 0) or (i == num_inference_steps - 1)
             if self.textile_metric is not None and self._textile_guidance_scale > 0 and is_textile_step:
               #Only activate TexTile during the style-focused steps ---
                 if i >= Textile_start_step:
