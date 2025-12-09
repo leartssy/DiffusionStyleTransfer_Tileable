@@ -311,7 +311,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_start_index = int(self._ddim_steps * self._alpha)
 
         #textile start -> delay running of textile into last steps
-        tex_start = 0.8
+        tex_start = 0.5
         Textile_start_step = int(num_inference_steps * tex_start)
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
