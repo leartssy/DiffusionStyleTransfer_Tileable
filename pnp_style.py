@@ -397,9 +397,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                       # Scale by the noise schedule's sigma to keep magnitude consistent
                       alpha_cumprod = self.scheduler.alphas_cumprod[i]
                       sigma = torch.sqrt(1 - alpha_cumprod)
-                    
+                      #test
+                      grad_scaled = grad * 5000.0
                       # 4. Apply the guidance as an additional noise prediction component
-                      noise_pred = noise_pred + self._textile_guidance_scale * grad.to(noise_pred.dtype) * sigma
+                      noise_pred = noise_pred + self._textile_guidance_scale * grad_scaled.to(noise_pred.dtype) * sigma
                       #for debugging
                       if i % 5 == 0 or i == self.scheduler.num_inference_steps - 1: 
                         print(f"[TexTile Debug] Step {i}/{self.scheduler.num_inference_steps-1} | Loss: {tileability_value.item():.5f} | Grad Norm: {grad.norm().item():.5f}")
@@ -425,4 +426,5 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
 
