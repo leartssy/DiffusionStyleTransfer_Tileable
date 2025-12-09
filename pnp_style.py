@@ -311,7 +311,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_start_index = int(self._ddim_steps * self._alpha)
 
         #textile start -> delay running of textile into last steps
-        tex_start = 0.5
+        tex_start = 0.3
         Textile_start_step = int(num_inference_steps * tex_start)
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
@@ -382,7 +382,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                       alpha_cumprod = self.scheduler.alphas_cumprod[i]
                       sigma = torch.sqrt(1 - alpha_cumprod)
                       #test:make scale bigger
-                      grad_scaled = grad * 1000.0
+                      grad_scaled = grad * 2000.0
                       # 4. Apply the guidance as an additional noise prediction component
                       noise_pred = noise_pred + current_textile_scale * grad_scaled.to(noise_pred.dtype) * sigma
                       #for debugging
