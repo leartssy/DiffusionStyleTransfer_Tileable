@@ -311,7 +311,8 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_start_index = int(self._ddim_steps * self._alpha)
 
         #textile start -> delay running of textile into last steps
-        Textile_start_step = int(num_inference_steps * 0.8)
+        tex_start = 0.8
+        Textile_start_step = int(num_inference_steps * tex_start)
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if we are doing classifier free guidance
@@ -324,24 +325,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             else:
                 style_lat = style_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
-                
-                # 1. Create a neutral, random noise latent (must match shape and device)
-                #remove style injection, replace with random noise
-                #rand_lat = torch.randn_like(latents[0]).unsqueeze(0).to(self.unet.device).to(torch.float16)
-                #latent_model_input = torch.cat([rand_lat] + [latents] * 2) if do_classifier_free_guidance else latents
-
-                #try: soft style injection:
-                #style_lat = style_latents[i].unsqueeze(0) 
-                #style_lat_float = style_lat.float() #temporarily cast to float
-                # 2. Downscale (e.g., 32x32 -> 16x16) to blur and remove high-frequency structural noise
-                #downscaled_lat = F.avg_pool2d(style_lat_float, kernel_size=2, stride=2) 
-                
-                # 3. Upscale back to original latent size (e.g., 16x16 -> 32x32) to restore shape
-                #soft_style_lat = F.interpolate(downscaled_lat, scale_factor=2, mode='bilinear', align_corners=False).to(style_lat.dtype)
-
-                # 4. Inject the Soft Latent as the conditioned input
-                #latent_model_input = torch.cat([soft_style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
-                #end soft latent injection
+            
                 
             latent_model_input = latent_model_input.to(self.unet.device).to(torch.float16)
 
@@ -360,9 +344,8 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 
             ####Insert TextTile Guidance code
             #try integrating textile as ramp
-            starting_point = 0.5
-            Ramp_start = int(num_inference_steps *starting_point) #starts at start percent
-            Ramp_end = int(num_inference_steps)
+            Ramp_start = Textile_start_step #starts at start percent
+            Ramp_end = int(num_inference_steps-1)
             Max_scale = self._textile_guidance_scale
 
             current_textile_scale = 0.0
@@ -378,15 +361,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                   # We temporarily enable gradients and clone latents for safety
                   print(f"[TexTile Debug] Step {i}: TexTile ACTIVE (Late-Stage Correction)")
                   latents_clone = latents.clone().detach().to(torch.float16).requires_grad_(True)
-                  
-                  
-
         
                   # Set latents to require grad for backpropagation
                   
                   with torch.enable_grad(): # Ensure gradients are enabled for the tileability loss
-                      
-                      
 
                       # Temporarily decode to get the image for the metric  
                       current_image = self.vae.decode(latents_clone / self.vae.config.scaling_factor, return_dict=False)[0]
@@ -395,25 +373,15 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                       # NOTE: You need to pass the initialized textile loss module (e.g., self.textile_metric)
                       tileability_value = self.textile_metric(current_image) 
                       
-                      
-
-                      
                       # 3. Calculate the gradient of the metric w.r.t the latents 
                       #  want to minimize the metric, so we use the negative gradient
                       grad = torch.autograd.grad(tileability_value, latents_clone)[0]
                       #for debugging: checks if Textile gradient high enough to have influence
 
-                      #print gradient strength textile
-                      #if i % 5 == 0 or i == self.scheduler.num_inference_steps - 1: 
-                          # Print loss and gradient norm every 5 steps
-                          #print(f"[TexTile Debug] Step {i}/{self.scheduler.num_inference_steps-1} | Loss: {tileability_value.item():.5f} | Grad Norm: {grad.norm().item():.5f}")
-                      # 
-
-
                       # Scale by the noise schedule's sigma to keep magnitude consistent
                       alpha_cumprod = self.scheduler.alphas_cumprod[i]
                       sigma = torch.sqrt(1 - alpha_cumprod)
-                      #test
+                      #test:make scale bigger
                       grad_scaled = grad * 1000.0
                       # 4. Apply the guidance as an additional noise prediction component
                       noise_pred = noise_pred + current_textile_scale * grad_scaled.to(noise_pred.dtype) * sigma
