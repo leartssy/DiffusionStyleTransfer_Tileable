@@ -392,9 +392,8 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                       if i % 5 == 0 or i == self.scheduler.num_inference_steps - 1: 
                         print(f"[TexTile Debug] Step {i}/{self.scheduler.num_inference_steps-1} | Loss: {tileability_value.item():.5f} | Grad Norm: {grad.norm().item():.5f}")
                 #for debugging: see when Textile inactive
-                elif i % 10 == 0 or i == 0 or i == num_inference_steps:
+                elif i % 10 == 0 or i == 0:
                     print(f"[TexTile Debug] Step {i}: TexTile INACTIVE (Content Injection Phase)")
-                    print(f"[TexTile Debug] Step {i}/{self.scheduler.num_inference_steps-1} | Loss: {tileability_value.item():.5f} | Grad Norm: {grad.norm().item():.5f}")
               
             #### End of TexTile integration
 
