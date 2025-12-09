@@ -345,7 +345,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             ####Insert TextTile Guidance code
             #try integrating textile as ramp
             Ramp_start = Textile_start_step #starts at start percent
-            Ramp_end = int(num_inference_steps-1)
+            Ramp_end = int(num_inference_steps-10)
             Max_scale = self._textile_guidance_scale
             Textile_skip = 10
 
