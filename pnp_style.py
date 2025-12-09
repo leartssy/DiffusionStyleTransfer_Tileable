@@ -311,7 +311,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_start_index = int(self._ddim_steps * self._alpha)
         style_stop_index = int(num_inference_steps - 10)
         #textile start -> delay running of textile into last steps
-        tex_start = 0.3
+        tex_start = 0.0
         Textile_start_step = int(num_inference_steps * tex_start)
         
 
@@ -329,7 +329,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             
             else:
                 latent_model_input = torch.cat([latents]*3) if do_classifier_free_guidance else latents
-                
+
             latent_model_input = latent_model_input.to(self.unet.device).to(torch.float16)
 
             noise_pred = self.unet(
