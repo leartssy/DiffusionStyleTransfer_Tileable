@@ -356,8 +356,19 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             if do_classifier_free_guidance:
                 _, noise_pred_uncond, noise_pred_text = noise_pred.chunk(3)
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
+                
+            ####Insert TextTile Guidance code
+            #try integrating textile as ramp
+            starting_point = 0.5
+            Ramp_start = int(num_inference_steps *starting_point) #starts at start percent
+            Ramp_end = int(num_inference_steps)
+            Max_scale = self.textile_guidance_scale
 
-            ####Insert TextTile Guidance code 
+            current_textile_scale = 0.0
+            if i>= Ramp_start:
+                  ramp_progress = (i-Ramp_start) / (Ramp_end - Ramp_start)
+                  ramp_progress = min(1.0,ramp_progress)
+                  current_textile_scale = Max_scale * ramp_progress
             if self.textile_metric is not None and self._textile_guidance_scale > 0: # Use a new guidance scale for the metric
               #Only activate TexTile during the style-focused steps ---
                 if i >= Textile_start_step:
@@ -366,6 +377,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                   # We temporarily enable gradients and clone latents for safety
                   print(f"[TexTile Debug] Step {i}: TexTile ACTIVE (Late-Stage Correction)")
                   latents_clone = latents.clone().detach().to(torch.float16).requires_grad_(True)
+                  
+                  
+
+        
                   # Set latents to require grad for backpropagation
                   
                   with torch.enable_grad(): # Ensure gradients are enabled for the tileability loss
@@ -426,6 +441,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
 
 
 
