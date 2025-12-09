@@ -350,7 +350,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             Ramp_start = Textile_start_step #starts at start percent
             Ramp_end = int(num_inference_steps)
             Max_scale = self._textile_guidance_scale
-            Textile_skip = 10
+            Textile_skip = 20
 
             current_textile_scale = 0.0
             if i>= Ramp_start:
