@@ -309,7 +309,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
         #calculate where style injection is expected to start
         style_start_index = int(num_inference_steps * self._alpha)
-        style_stop_index = int(num_inference_steps - 9)
+        style_stop_index = int(num_inference_steps)
         #textile start -> delay running of textile into last steps
         tex_start = 0.2
         Textile_start_step = int(num_inference_steps * tex_start)
