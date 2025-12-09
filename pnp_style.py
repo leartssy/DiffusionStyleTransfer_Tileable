@@ -308,10 +308,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         self.scheduler.set_timesteps(num_inference_steps, **extra_set_kwargs)
 
         #calculate where style injection is expected to start
-        style_start_index = int(self._ddim_steps * self._alpha)
+        style_start_index = int(num_inference_steps * self._alpha)
         style_stop_index = int(num_inference_steps - 9)
         #textile start -> delay running of textile into last steps
-        tex_start = 0.1
+        tex_start = 0.2
         Textile_start_step = int(num_inference_steps * tex_start)
         
 
@@ -357,7 +357,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                   ramp_progress = (i-Ramp_start) / (Ramp_end - Ramp_start)
                   ramp_progress = min(1.0,ramp_progress)
                   current_textile_scale = Max_scale * ramp_progress
-            if self.textile_metric is not None and self._textile_guidance_scale > 0 and (i % Textile_skip == 0): # Use a new guidance scale for the metric
+            if self.textile_metric is not None and self._textile_guidance_scale > 0 and (i % Textile_skip == 0):
               #Only activate TexTile during the style-focused steps ---
                 if i >= Textile_start_step:
                   # 1. Decode the current latents to pixel space (required by TexTile)
@@ -374,14 +374,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                       current_image = self.vae.decode(latents_clone / self.vae.config.scaling_factor, return_dict=False)[0]
                       
                       # 2. Calculate the differentiable TexTile metric
-                      # NOTE: You need to pass the initialized textile loss module (e.g., self.textile_metric)
                       tileability_value = self.textile_metric(current_image) 
                       
-                      # 3. Calculate the gradient of the metric w.r.t the latents 
-                      #  want to minimize the metric, so we use the negative gradient
+                      # 3. Calculate the gradient of the metric
                       grad = torch.autograd.grad(tileability_value, latents_clone)[0]
                       #for debugging: checks if Textile gradient high enough to have influence
-
                       # Scale by the noise schedule's sigma to keep magnitude consistent
                       alpha_cumprod = self.scheduler.alphas_cumprod[i]
                       sigma = torch.sqrt(1 - alpha_cumprod)
