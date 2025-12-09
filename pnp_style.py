@@ -309,10 +309,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
         #calculate where style injection is expected to start
         style_start_index = int(self._ddim_steps * self._alpha)
-
+        style_stop_index = int(num_inference_steps - 10)
         #textile start -> delay running of textile into last steps
         tex_start = 0.3
         Textile_start_step = int(num_inference_steps * tex_start)
+        
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if we are doing classifier free guidance
@@ -322,10 +323,12 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             if t in content_step:
                 content_lat = content_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
-            else:
+            elif i < style_stop_index:
                 style_lat = style_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
             
+            else:
+                latent_model_input = torch.cat([latents]*3) if do_classifier_free_guidance else latents
                 
             latent_model_input = latent_model_input.to(self.unet.device).to(torch.float16)
 
@@ -345,7 +348,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             ####Insert TextTile Guidance code
             #try integrating textile as ramp
             Ramp_start = Textile_start_step #starts at start percent
-            Ramp_end = int(num_inference_steps-10)
+            Ramp_end = int(num_inference_steps)
             Max_scale = self._textile_guidance_scale
             Textile_skip = 10
 
