@@ -366,7 +366,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                   # We temporarily enable gradients and clone latents for safety
                   print(f"[TexTile Debug] Step {i}: TexTile ACTIVE (Late-Stage Correction)")
                   latents_clone = latents.clone().detach().to(torch.float16).requires_grad_(True)
-                  # Set latents to require grad for backpropagation
+
+                  #integrate textile as a ramp gradually:
+                  Ramp_start = int(num_inference_steps * 0.5) #start at 50%
+                  Ramp_end = num_inference_steps
+                # Set latents to require grad for backpropagation
                   
                   with torch.enable_grad(): # Ensure gradients are enabled for the tileability loss
                       
@@ -425,4 +429,5 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
 
