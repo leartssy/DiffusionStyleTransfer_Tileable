@@ -249,7 +249,7 @@ def run(opt):
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 #covnert rgb numpy back to bgr for opencv saving
-                cv2.inwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
+                cv2.imwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
                 print(f"Saved final blended image to {save_path}")
 
             else:
