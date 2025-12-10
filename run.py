@@ -55,7 +55,7 @@ def run(opt):
     content_path = [f for f in content_path.glob('*')]
     style_path = Path(opt.style_path)
     style_path = [f for f in style_path.glob('*')]
-    is_tileable = opt.is_tileable
+    is_tileable = True
     
     extraction_path = "latents_reverse" if opt.extract_reverse else "latents_forward"
     base_save_path = os.path.join(opt.output_dir, extraction_path)
@@ -207,6 +207,11 @@ def run(opt):
             pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
             torch.cuda.empty_cache()
 
+#def str_to_bool(value):
+    #if value.lower() in ("true", "True"):
+      #  return True
+    #else:
+       # return False
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -228,7 +233,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_key', type=str, required=True, help='Path to the directory containing the pretrained model files (e.g., blipdiffusion folder).')
     #Textile
     parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
-    parser.add_argument('--tileable', type=bool, default=True)
+    #parser.add_argument('--is_tileable', type=str_to_bool, default=True, help="Set to true or False for circular padding")
     parser.add_argument('--inversion_prompt', type=str, default='')
     parser.add_argument('--extract-reverse', default=False, action='store_true', help="extract features during the denoising process")
     parser.add_argument('--prefix_name', type=str, default='')
