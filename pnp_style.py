@@ -311,7 +311,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_start_index = int(num_inference_steps * self._alpha)
         style_stop_index = int(num_inference_steps)
         #textile start -> delay running of textile into last steps
-        tex_start = 0.8
+        tex_start = 0.1
         Textile_start_step = int(num_inference_steps * tex_start)
         
 
@@ -350,7 +350,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             Ramp_start = Textile_start_step #starts at start percent
             Ramp_end = int(num_inference_steps)
             Max_scale = self._textile_guidance_scale
-            Textile_skip = 5
+            Textile_skip = 20
 
             current_textile_scale = 0.0
             if i>= Ramp_start:
