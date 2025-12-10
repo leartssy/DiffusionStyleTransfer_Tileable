@@ -48,9 +48,6 @@ def run(opt):
     model_key = Path(opt.model_key)
     blip_diffusion_pipe = BLIP.from_pretrained(model_key, torch_dtype=torch.float16).to("cuda")
     
-    is_tileable = False
-    if is_tileable:
-        blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
     
     scheduler = PNDMScheduler.from_pretrained(model_key, subfolder="scheduler")
     scheduler.set_timesteps(opt.ddpm_steps)
@@ -58,6 +55,7 @@ def run(opt):
     content_path = [f for f in content_path.glob('*')]
     style_path = Path(opt.style_path)
     style_path = [f for f in style_path.glob('*')]
+    is_tileable = opt.is_tileable
     
     extraction_path = "latents_reverse" if opt.extract_reverse else "latents_forward"
     base_save_path = os.path.join(opt.output_dir, extraction_path)
@@ -196,6 +194,12 @@ def run(opt):
             all_style_latents.append(style_latents)
             
     print("\n[STEP 3] Running PNP Style Transfer...")
+    print("Enabling circular padding for tileability in U-Net...")
+    
+    if is_tileable:
+        blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
+        pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
+    
     # The main execution loop is now ready to run without loading bottlenecks
     for content_latents, content_file in zip(all_content_latents, content_path):
         for style_latents, style_file in zip(all_style_latents, style_path):
@@ -203,7 +207,7 @@ def run(opt):
             pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
             torch.cuda.empty_cache()
 
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--content_path', type=str,
@@ -224,7 +228,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_key', type=str, required=True, help='Path to the directory containing the pretrained model files (e.g., blipdiffusion folder).')
     #Textile
     parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
-
+    parser.add_argument('--tileable', type=bool, default=True)
     parser.add_argument('--inversion_prompt', type=str, default='')
     parser.add_argument('--extract-reverse', default=False, action='store_true', help="extract features during the denoising process")
     parser.add_argument('--prefix_name', type=str, default='')
