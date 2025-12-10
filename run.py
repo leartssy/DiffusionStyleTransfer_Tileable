@@ -55,7 +55,7 @@ def run(opt):
     content_path = [f for f in content_path.glob('*')]
     style_path = Path(opt.style_path)
     style_path = [f for f in style_path.glob('*')]
-    is_tileable = True
+    is_tileable = opt.is_tileable
     
     extraction_path = "latents_reverse" if opt.extract_reverse else "latents_forward"
     base_save_path = os.path.join(opt.output_dir, extraction_path)
