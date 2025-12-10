@@ -366,7 +366,7 @@ if __name__ == "__main__":
     parser.add_argument('--prefix_name', type=str, default='')
     
     #additional arguments for blending seams
-    parser.add_argument('--gap',type=float, default=60, help="Size of border that will be used for blending in pixel size")
+    parser.add_argument('--gap',type=float, default=0.12, help="Size of border that will be used for blending in pixel size or in percentage if under 1")
     parser.add_argument('--min_ratio',type=float, default=0.2, help='Used to ensure balanced blending')
     parser.add_argument('--blurring',type=int, default=3,choices=range(1,10,2), help="Size of Gaussian blur to make merging softer.Use odd numbers only.")
     parser.add_argument('--maintain_size',type=bool, default=True,help="maintain images default size")
