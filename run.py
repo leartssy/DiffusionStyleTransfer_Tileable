@@ -220,10 +220,6 @@ def run(opt):
             if is_tileable:
                 print("\n[STEP4] Blending Image Seams...")
                 #integrate seam blending
-                generated_images_list = pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
-                generated_image_pil = generated_images_list[0]
-                torch.cuda.empty_cache()
-
                 #convert PIL image to cv2 format
                 im_np = np.array(generated_image_pil.convert('RGB'))
                 #determine gap size
