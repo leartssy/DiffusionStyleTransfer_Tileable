@@ -48,7 +48,9 @@ def run(opt):
     model_key = Path(opt.model_key)
     blip_diffusion_pipe = BLIP.from_pretrained(model_key, torch_dtype=torch.float16).to("cuda")
     
-    blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
+    is_tileable = False
+    if is_tileable:
+        blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
     
     scheduler = PNDMScheduler.from_pretrained(model_key, subfolder="scheduler")
     scheduler.set_timesteps(opt.ddpm_steps)
