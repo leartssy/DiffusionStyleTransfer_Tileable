@@ -218,7 +218,7 @@ def run(opt):
             
             
             if is_tileable:
-                print("\n[STEP4] Blending Image Seams...")
+                print("Blending Image Seams...")
                 #integrate seam blending
                 #convert PIL image to cv2 format
                 im_np = np.array(generated_image_pil.convert('RGB'))
