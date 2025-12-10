@@ -69,6 +69,7 @@ class PNP(nn.Module):
         cond_image = load_img1(self,style_file)
         guidance_scale = self.config.guidance_scale #previously 7.5
         textile_guidance = self.config.textile_guidance_scale
+        is_tileable = self.config.is_tileable
         #previous code:num_inference_steps = 50
         num_inference_steps = self.config.ddim_steps
         negative_prompt = "over-exposure, under-exposure, saturated, duplicate, out of frame, lowres, cropped, worst quality, low quality, jpeg artifacts, morbid, mutilated, out of frame, ugly, bad anatomy, bad proportions, deformed, blurry, duplicate"
@@ -91,7 +92,8 @@ class PNP(nn.Module):
             content_step=content_step,
         ).images
 
-        output[0].save(f'{self.config.output_dir}/{self.config.prefix_name}+{os.path.basename(content_fn)}+{os.path.basename(style_fn)}.png')
+        
+        #output[0].save(f'{self.config.output_dir}/{self.config.prefix_name}+{os.path.basename(content_fn)}+{os.path.basename(style_fn)}.png')
 
         return output
         
