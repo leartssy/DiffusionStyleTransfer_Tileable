@@ -22,10 +22,33 @@ from pnp_style import PNP, BLIP, BLIP_With_Textile
 import textile 
 #endTextileImports
 
+import torch.nn as nn
+
+def make_model_circular(unet_model):
+    """
+    Patches a Stable Diffusion/BLIP-Diffusion U-Net to use circular padding.
+    """
+    for name, module in unet_model.named_modules():
+        # Find all 2D Convolutional layers
+        if isinstance(module, nn.Conv2d):
+            # Apply only to layers that actually use padding (usually kernel_size > 1)
+            # 1x1 convolutions (kernel_size=1) typically don't need padding.
+            if isinstance(module.padding, tuple):
+                 if module.padding[0] > 0 or module.padding[1] > 0:
+                     module.padding_mode = 'circular'
+            elif isinstance(module.padding, int):
+                 if module.padding > 0:
+                     module.padding_mode = 'circular'
+
+    print("Circular padding enabled on U-Net.")
+    return unet_model
+
+
 def run(opt):
     model_key = Path(opt.model_key)
     blip_diffusion_pipe = BLIP.from_pretrained(model_key, torch_dtype=torch.float16).to("cuda")
     
+    blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
     
     scheduler = PNDMScheduler.from_pretrained(model_key, subfolder="scheduler")
     scheduler.set_timesteps(opt.ddpm_steps)
