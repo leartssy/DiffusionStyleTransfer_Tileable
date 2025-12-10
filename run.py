@@ -215,7 +215,7 @@ def run(opt):
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
-            save_path = os.path.join(opt.output_dir, out_fn)
+            
             
             if is_tileable:
                 print("\n[STEP4] Blending Image Seams...")
@@ -247,12 +247,14 @@ def run(opt):
                 )
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
+                save_path = os.path.join(opt.output_dir, out_fn)
                 #covnert rgb numpy back to bgr for opencv saving
                 cv2.inwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
                 print(f"Saved final blended image to {save_path}")
 
             else:
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
+                save_path = os.path.join(opt.output_dir, out_fn)
                 generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                 print(f"Saved raw generated image to {save_path}")
             
