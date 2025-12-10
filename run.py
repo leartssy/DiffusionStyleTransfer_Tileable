@@ -210,9 +210,9 @@ def run(opt):
 def str_to_bool(value):
     if isinstance(value, bool):
         return value
-    if value.lower() in ("True", "true"):
+    if value.lower() in ("true"):
         return True
-    elif value.lower() in ("False","false"):
+    elif value.lower() in ("false"):
         return False
     else: raise argparse.ArgumentTypeError(f"Boolean expected, but got {value}")
 
