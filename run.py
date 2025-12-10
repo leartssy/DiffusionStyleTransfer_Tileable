@@ -208,10 +208,13 @@ def run(opt):
             torch.cuda.empty_cache()
 
 def str_to_bool(value):
-    if value.lower() in ("true", "True"):
+    if isinstance(value, bool):
+        return value
+    if value.lower() in ("True", "true"):
         return True
-    else:
+    elif value.lower() in ("False","false"):
         return False
+    else: raise argparse.ArgumentTypeError(f"Boolean expected, but got {value}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -233,7 +236,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_key', type=str, required=True, help='Path to the directory containing the pretrained model files (e.g., blipdiffusion folder).')
     #Textile
     parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
-    parser.add_argument('--is_tileable', type=str_to_bool, default=True, help="Set to true or False for circular padding")
+    parser.add_argument('--is_tileable', type=str_to_bool, default=False, help="Set to true or False for circular padding")
     parser.add_argument('--inversion_prompt', type=str, default='')
     parser.add_argument('--extract-reverse', default=False, action='store_true', help="extract features during the denoising process")
     parser.add_argument('--prefix_name', type=str, default='')
