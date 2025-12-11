@@ -321,13 +321,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             # expand the latents if we are doing classifier free guidance
             register_time(self, t.item())
             do_classifier_free_guidance = guidance_scale > 1.0
-            print(f"Time Step: {i}")
+            
             if t in content_step:
-                print(f"Content Latent Shape: {content_lat.shape}")
                 content_lat = content_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
             elif i < style_stop_index:
-                print(f"Style Latent Shape: {style_lat.shape}")
                 style_lat = style_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
             
@@ -363,7 +361,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                   #current_textile_scale = Max_scale * ramp_progress
 
             #is_textile_step = (i % Textile_skip == 0) and not (i == num_inference_steps)
-            if self.textile_metric is not None and self._textile_guidance_scale > 0 #and is_textile_step:
+            if self.textile_metric is not None and self._textile_guidance_scale > 0 and is_textile_step:
               #Only activate TexTile during the style-focused steps ---
                 if i >= Textile_start_step:
                   # 1. Decode the current latents to pixel space (required by TexTile)
