@@ -325,7 +325,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             if t in content_step:
                 content_lat = content_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
-            elif i < style_stop_index:
+            elif i < style_stop_index and i >= style_start_index:
                 style_lat = style_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
             
