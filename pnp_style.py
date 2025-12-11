@@ -325,7 +325,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             if t in content_step:
                 content_lat = content_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
-            elif i < style_stop_index:
+            elif i < style_stop_index and i >= style_start_index:
                 style_lat = style_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
             
@@ -349,18 +349,18 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 
             ####Insert TextTile Guidance code
             #try integrating textile as ramp
-            #Ramp_start = Textile_start_step #starts at start percent
-            #Ramp_end = int(num_inference_steps)
-            #Max_scale = self._textile_guidance_scale
-            #Textile_skip = 20
+            Ramp_start = Textile_start_step #starts at start percent
+            Ramp_end = int(num_inference_steps)
+            Max_scale = self._textile_guidance_scale
+            Textile_skip = 20
 
-            #current_textile_scale = 0.0
-            #if i>= Ramp_start:
-                  #ramp_progress = (i-Ramp_start) / (Ramp_end - Ramp_start)
-                  #ramp_progress = min(1.0,ramp_progress)
-                  #current_textile_scale = Max_scale * ramp_progress
+            current_textile_scale = 0.0
+            if i>= Ramp_start:
+                  ramp_progress = (i-Ramp_start) / (Ramp_end - Ramp_start)
+                  ramp_progress = min(1.0,ramp_progress)
+                  current_textile_scale = Max_scale * ramp_progress
 
-            #is_textile_step = (i % Textile_skip == 0) and not (i == num_inference_steps)
+            is_textile_step = (i % Textile_skip == 0) and not (i == num_inference_steps)
             if self.textile_metric is not None and self._textile_guidance_scale > 0 and is_textile_step:
               #Only activate TexTile during the style-focused steps ---
                 if i >= Textile_start_step:
