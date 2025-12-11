@@ -309,23 +309,13 @@ def blend_seams(image,gap,blur=3,min_ratio=0.2):
     return  final_im
 
 def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain_size=True):
-    only_horizontal_tiling = opt.only_horizontal_tiling
-    if only_horizontal_tiling:
-        
-        #horizontal blending: rotate 90degrees and tile again
-        final_im = np.rot90(final_im)
-        final_im = blend_seams(final_im,gap_px,blur,min_ratio)
-        #rotate back
-        final_im = cv2.rotate(final_im,cv2.ROTATE_90_CLOCKWISE)
-        
-    else:
-        #vertical blending
-        final_im = blend_seams(image,gap_px,blur, min_ratio)
-        #horizontal blending: rotate 90degrees and tile again
-        final_im = np.rot90(final_im)
-        final_im = blend_seams(final_im,gap_px,blur,min_ratio)
-        #rotate back
-        final_im = cv2.rotate(final_im,cv2.ROTATE_90_CLOCKWISE)
+    #vertical blending
+    final_im = blend_seams(image,gap_px,blur, min_ratio)
+    #horizontal blending: rotate 90degrees and tile again
+    final_im = np.rot90(final_im)
+    final_im = blend_seams(final_im,gap_px,blur,min_ratio)
+    #rotate back
+    final_im = cv2.rotate(final_im,cv2.ROTATE_90_CLOCKWISE)
 
     #maintain size if wanted
     if maintain_size and im_origin_size is not None:
@@ -376,8 +366,6 @@ if __name__ == "__main__":
     parser.add_argument('--min_ratio',type=float, default=0.2, help='Used to ensure balanced blending')
     parser.add_argument('--blurring',type=int, default=3,choices=range(1,10,2), help="Size of Gaussian blur to make merging softer.Use odd numbers only.")
     parser.add_argument('--maintain_size',type=bool, default=True,help="maintain images default size")
-    parser.add_argument('--only_horizontal_tiling', type=str_to_bool, default=False, help="Set to true or False for only horizontal tiling")
-
 
     opt = parser.parse_args()
 
