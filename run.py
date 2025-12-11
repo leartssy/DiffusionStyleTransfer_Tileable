@@ -311,7 +311,7 @@ def blend_seams(image,gap,blur=3,min_ratio=0.2):
 def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain_size=True):
     only_horizontal_tiling = opt.only_horizontal_tiling
     if only_horizontal_tiling:
-        final_im = blend_seams(final_im,0.01,blur,min_ratio)
+        
         #horizontal blending: rotate 90degrees and tile again
         final_im = np.rot90(final_im)
         final_im = blend_seams(final_im,gap_px,blur,min_ratio)
