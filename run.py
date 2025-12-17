@@ -275,6 +275,7 @@ def run(opt):
                         list(Path(opt.output_dir).glob("*_tiled.png"))
         #normal map generation
         for img_path in output_images:
+            i = 0
             input_img = Image.open(img_path).convert("RGB")
             final_normal = generate_normal(input_img, marigold_pipe)
 
@@ -282,6 +283,7 @@ def run(opt):
             out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_normal.png'
             save_path = os.path.join(opt.output_dir, out_fn)
             final_normal[0].save(save_path)
+            i+=1
             print(f"Saved final blended image to {save_path}")
             
             
