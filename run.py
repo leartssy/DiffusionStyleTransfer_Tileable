@@ -199,7 +199,7 @@ def run(opt):
             all_style_latents.append(style_latents)
             
     print("\n[STEP 3] Running PNP Style Transfer...")
-    
+    newly_generated_paths = []
     if is_tileable:
         print("Enabling circular padding for tileability...")
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
@@ -248,12 +248,14 @@ def run(opt):
                 save_path = os.path.join(opt.output_dir, out_fn)
                 #covnert rgb numpy back to bgr for opencv saving
                 cv2.imwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
+                newly_generated_paths.append(save_path)
                 print(f"Saved final blended image to {save_path}")
 
             else:
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 generated_image_pil.save(save_path) # Use PIL's save method for the raw image
+                newly_generated_paths.append(save_path)
                 print(f"Saved raw generated image to {save_path}")
             
 
@@ -271,10 +273,8 @@ def run(opt):
             torch_dtype=torch.float16
         ).to("cuda")
     
-        output_images = list(Path(opt.output_dir).glob("*_raw.png")) + \
-                        list(Path(opt.output_dir).glob("*_tiled.png"))
         #normal map generation
-        for img_path in output_images:
+        for img_path in newly_generated_paths:
             input_img = Image.open(img_path).convert("RGB")
             final_normal = generate_normal(input_img, marigold_pipe)
 
