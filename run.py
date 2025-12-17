@@ -281,7 +281,7 @@ def run(opt):
             #Save the normal map
             out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_normal.png'
             save_path = os.path.join(opt.output_dir, out_fn)
-            final_normal.save(save_path)
+            final_normal[0].save(save_path)
             print(f"Saved final blended image to {save_path}")
             
             
