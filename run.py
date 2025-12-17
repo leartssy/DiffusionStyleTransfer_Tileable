@@ -48,6 +48,7 @@ def make_model_circular(unet_model):
 
 
 def run(opt):
+    
     model_key = Path(opt.model_key)
     blip_diffusion_pipe = BLIP.from_pretrained(model_key, torch_dtype=torch.float16).to("cuda")
     
@@ -204,17 +205,6 @@ def run(opt):
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
         pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
 
-    if gen_normal:
-        print("Enabling Marigold Pipe for Normal Generation...")
-        import torch
-        import diffusers
-        from diffusers import MarigoldNormalsPipeline
-
-        marigold_pipe = MarigoldNormalsPipeline.from_pretrained(
-            "prs-eth/marigold-normals-v1-1",
-            variant="fp16",
-            torch_dtype=torch.float16
-        ).to("cuda")
 
     # The main execution loop is now ready to run without loading bottlenecks
     for content_latents, content_file in zip(all_content_latents, content_path):
@@ -266,17 +256,33 @@ def run(opt):
                 generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                 print(f"Saved raw generated image to {save_path}")
             
-            if gen_normal:
-                print("Generating normal map...")
-                
-                #normal map generation
-                final_normal = generate_normal(im_np, marigold_pipe)
 
-                #Save the normal map
-                out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_normal.png'
-                save_path = os.path.join(opt.output_dir, out_fn)
-                final_normal.save(save_path)
-                print(f"Saved final blended image to {save_path}")
+    if gen_normal:
+        print("Cleaning up Style Transfer model to free VRAM for Marigold...")
+        del blip_diffusion_pipe
+        del pnp
+        torch.cuda.empty_cache()
+        print("Enabling Marigold Pipe for Normal Generation...")
+        from diffusers import MarigoldNormalsPipeline
+
+        marigold_pipe = MarigoldNormalsPipeline.from_pretrained(
+            "prs-eth/marigold-normals-v1-1",
+            variant="fp16",
+            torch_dtype=torch.float16
+        ).to("cuda")
+    
+        output_images = list(Path(opt.output_dir).glob("*_raw.png")) + \
+                        list(Path(opt.output_dir).glob("*_tiled.png"))
+        #normal map generation
+        for img_path in output_images:
+            input_img = Image.open(img_path).convert("RGB")
+            final_normal = generate_normal(input_img, marigold_pipe)
+
+            #Save the normal map
+            out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_normal.png'
+            save_path = os.path.join(opt.output_dir, out_fn)
+            final_normal.save(save_path)
+            print(f"Saved final blended image to {save_path}")
             
             
 
