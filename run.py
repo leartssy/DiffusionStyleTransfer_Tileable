@@ -274,10 +274,11 @@ def run(opt):
         ).to("cuda")
     
         #normal map generation
-        for img_path in newly_generated_paths:
+        for img_path_str in newly_generated_paths:
+            img_path = Path(img_path_str)
             input_img = Image.open(img_path).convert("RGB")
             final_normal = generate_normal(input_img, marigold_pipe)
-
+            
             #Save the normal map
             base_name = img_path.stem
             out_fn = f"{base_name}_normal.png"
