@@ -59,6 +59,7 @@ def run(opt):
     style_path = Path(opt.style_path)
     style_path = [f for f in style_path.glob('*')]
     is_tileable = opt.is_tileable
+    gen_normal = opt.gen_normal
     
     extraction_path = "latents_reverse" if opt.extract_reverse else "latents_forward"
     base_save_path = os.path.join(opt.output_dir, extraction_path)
@@ -197,13 +198,24 @@ def run(opt):
             all_style_latents.append(style_latents)
             
     print("\n[STEP 3] Running PNP Style Transfer...")
-    print("Enabling circular padding for tileability in U-Net...")
     
     if is_tileable:
         print("Enabling circular padding for tileability...")
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
         pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
-    
+
+    if gen_normal:
+        print("Enabling Marigold Pipe for Normal Generation...")
+        import torch
+        import diffusers
+        from diffusers import MarigoldNormalsPipeline
+
+        marigold_pipe = MarigoldNormalsPipeline.from_pretrained(
+            "prs-eth/marigold-normals-v1-1",
+            variant="fp16",
+            torch_dtype=torch.float16
+        ).to("cuda")
+
     # The main execution loop is now ready to run without loading bottlenecks
     for content_latents, content_file in zip(all_content_latents, content_path):
         for style_latents, style_file in zip(all_style_latents, style_path):
@@ -253,6 +265,18 @@ def run(opt):
                 save_path = os.path.join(opt.output_dir, out_fn)
                 generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                 print(f"Saved raw generated image to {save_path}")
+            
+            if gen_normal:
+                print("Generating normal map...")
+                
+                #normal map generation
+                final_normal = generate_normal(im_np, marigold_pipe)
+
+                #Save the normal map
+                out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_normal.png'
+                save_path = os.path.join(opt.output_dir, out_fn)
+                final_normal.save(save_path)
+                print(f"Saved final blended image to {save_path}")
             
             
 
@@ -323,7 +347,12 @@ def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain
     
     return final_im
 
+def generate_normal(image, pipe):
 
+    #load image
+    normals = pipe(image)
+    final_im = pipe.image_processor.visualize_normals(normals.prediction)
+    return final_im
 
 def str_to_bool(value):
     if isinstance(value, bool):
@@ -357,6 +386,8 @@ if __name__ == "__main__":
     #Textile
     parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
     parser.add_argument('--is_tileable', type=str_to_bool, default=False, help="Set to true or False for circular padding")
+    parser.add_argument('--gen_normal', type=str_to_bool, default=False, help="Set to true or False for normal map generation")
+
     parser.add_argument('--inversion_prompt', type=str, default='')
     parser.add_argument('--extract-reverse', default=False, action='store_true', help="extract features during the denoising process")
     parser.add_argument('--prefix_name', type=str, default='')
