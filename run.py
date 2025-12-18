@@ -390,7 +390,7 @@ def generate_normal(image, pipe,strength=2.0):
     adjusted_normals = torch.cat([scaled_x_normals, scaled_y_normals, z_normals],dim=3) / magnitude
 
     #convert to numpy
-    image_numpy = adjusted_normals[0].cpu().numpy
+    image_numpy = adjusted_normals[0].cpu().numpy()
     #convert from [-1,1] to [0,1], so screen can display it
     image_numpy_scaled = (image_numpy + 1.0) / 2.0
     #convert to 8-bit [0,255] and create PIL image
