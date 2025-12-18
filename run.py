@@ -370,22 +370,27 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     #image = image.filter(ImageFilter.GaussianBlur(radius=2)) #gaussian blur
    
     
-    import cv2
-    image = cv2.cvtColor(np.array(image),cv2.COLOR_RGB2BGR)
+    import cv
+    img_array = np.array(image)
+    image_cv = cv2.cvtColor(img_array,cv2.COLOR_RGB2BGR)
     #median filter
-    image = cv2.medianBlur(image,7)
+    image_cv = cv2.medianBlur(image_cv,7)
     #bilateral filter
-    smoothed = cv2.bilateralFilter(image,d=15,sigmaColor=100,sigmaSpace=100)
-    image = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
+    smoothed = cv2.bilateralFilter(image_cv,d=15,sigmaColor=100,sigmaSpace=100)
+    clean_image_pil = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
 
     #load image
-    normals = pipe(image,output_type="pt") #output math vectors
+    output = pipe(clean_image_pil,output_type="pt") #output math vectors
     #for strength calculations
-    normals = normals.prediction
+    normals = output.prediction
     #permute to bring into right order: (Batch,Height,Width,Channels)
     normals = normals.permute(0,2,3,1)
     #find the edges and sharpen them
-    laplacian = cv2.Laplacian(image,cv2.CV_32F).mean(axis=2)#laplacian to find rock edges
+    #covnert to greyscale
+    gray_smoothed = cv2.cvtColor(smoothed, cv2.COLOR_BGR2GRAY)
+    laplacian = cv2.Laplacian(gray_smoothed,cv2.CV_32F)#laplacian to find rock edges
+    laplacian = (laplacian - laplacian.min()) / (laplacian.max()-laplacian.min() + 1e-6)
+    laplacian = (laplacian * 2.0) -1.0
     detail_map = torch.from_numpy(laplacian).to(normals.device).unsqueeze(0).unsqueeze(-1)
     #adjust normal strength
     #seperate: format: Batch,Height,Width,Channels
