@@ -364,7 +364,7 @@ def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain
     
     return final_im
 
-def generate_normal(image, pipe,strength=2.0):
+def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     from PIL import Image, ImageFilter
     #test:blur the image before normal pipeline: brushstrokes and stylized effects less a problem
     #image = image.filter(ImageFilter.GaussianBlur(radius=2)) #gaussian blur
@@ -384,6 +384,9 @@ def generate_normal(image, pipe,strength=2.0):
     normals = normals.prediction
     #permute to bring into right order: (Batch,Height,Width,Channels)
     normals = normals.permute(0,2,3,1)
+    #find the edges and sharpen them
+    laplacian = cv2.Laplacian(image,cv2.CV_32F).mean(axis=2)#laplacian to find rock edges
+    detail_map = torch.from_numpy(laplacian).to(normals.device).unsqueeze(0).unsqueeze(-1)
     #adjust normal strength
     #seperate: format: Batch,Height,Width,Channels
     #: -> take everything, 0:1 -> start at 0, stop at 1 -> take only first channel
@@ -392,8 +395,8 @@ def generate_normal(image, pipe,strength=2.0):
     z_normals = normals[:,:,:,2:3]
 
     #scale only x and y -> make surface look bumpier
-    scaled_x_normals = x_normals * strength
-    scaled_y_normals = y_normals * strength
+    scaled_x_normals = x_normals * strength + detail_map * detail_boost
+    scaled_y_normals = y_normals * strength + detail_map * detail_boost
 
     #reconstruct the normal map, normalize vectors **2 = ^2
     #Wurzel aus x^2 +y^2 +z^2 ist normal vector
