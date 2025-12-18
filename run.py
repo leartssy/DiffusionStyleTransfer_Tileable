@@ -371,7 +371,7 @@ def generate_normal(image, pipe,strength=2.0):
     #bilateral filter
     import cv2
     image = cv2.cvtColor(np.array(image),cv2.COLOR_RGB2BGR)
-    smoothed = cv2.bilateralFilter(image,d=9,sigmaColor=75,sigmaSpace=75)
+    smoothed = cv2.bilateralFilter(image,d=9,sigmaColor=25,sigmaSpace=20)
     image = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
 
     #load image
