@@ -272,18 +272,21 @@ def run(opt):
             variant="fp16",
             torch_dtype=torch.float16
         ).to("cuda")
-    
+
+        strength = opt.normal_strength
+
         #normal map generation
         for img_path_str in newly_generated_paths:
             img_path = Path(img_path_str)
             input_img = Image.open(img_path).convert("RGB")
-            final_normal = generate_normal(input_img, marigold_pipe)
+
+            final_normal = generate_normal(input_img, marigold_pipe,strength)
             
             #Save the normal map
             base_name = img_path.stem
             out_fn = f"{base_name}_normal.png"
             save_path = os.path.join(opt.output_dir, out_fn)
-            final_normal[0].save(save_path)
+            final_normal.save(save_path)
             print(f"Saved final blended image to {save_path}")
             
             
@@ -355,11 +358,45 @@ def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain
     
     return final_im
 
-def generate_normal(image, pipe):
+def generate_normal(image, pipe,strength=2.0):
 
     #load image
-    normals = pipe(image)
-    final_im = pipe.image_processor.visualize_normals(normals.prediction)
+    normals = pipe(image,output_type="pt") #output math vectors
+    #for strength calculations
+    normals = normals.prediction
+    #permute to bring into right order: (Batch,Height,Width,Channels)
+    normals = normals.permute(0,2,3,1)
+    #adjust normal strength
+    #seperate: format: Batch,Height,Width,Channels
+    #: -> take everything, 0:1 -> start at 0, stop at 1 -> take only first channel
+    x_normals = normals[:,:,:,0:1]
+    y_normals = normals[:,:,:,1:2]
+    z_normals = normals[:,:,:,2:3]
+
+    #scale only x and y -> make surface look bumpier
+    scaled_x_normals = x_normals * strength
+    scaled_y_normals = y_normals * strength
+
+    #reconstruct the normal map, normalize vectors **2 = ^2
+    #Wurzel aus x^2 +y^2 +z^2 ist normal vector
+    squared_magnitude = scaled_x_normals**2 + scaled_y_normals**2 + z_normals**2
+    #wurzel davon
+    magnitude = torch.sqrt(squared_magnitude)
+    #diffusion models sometimes produce "dead pixels"->value 0, avoid dividing by 0
+    #clamp(min=1e-6) -> smallest possible number tiny ~0.0000001
+    magnitude = torch.clamp(magnitude, min=1e-6)
+
+    #put RGB channels back where they belong dim=3, divide by magnitude to normalize
+    adjusted_normals = torch.cat([scaled_x_normals, scaled_y_normals, z_normals],dim=3) / magnitude
+
+    #convert to numpy
+    image_numpy = adjusted_normals[0].cpu().numpy
+    #convert from [-1,1] to [0,1], so screen can display it
+    image_numpy_scaled = (image_numpy + 1.0) / 2.0
+    #convert to 8-bit [0,255] and create PIL image
+    image_uint8 = (image_numpy_scaled *255).clip(0,255).astype(np.uint8)
+    #convert to PIL image
+    final_im = Image.fromarray(image_uint8)
     return final_im
 
 def str_to_bool(value):
@@ -395,6 +432,8 @@ if __name__ == "__main__":
     parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
     parser.add_argument('--is_tileable', type=str_to_bool, default=False, help="Set to true or False for circular padding")
     parser.add_argument('--gen_normal', type=str_to_bool, default=False, help="Set to true or False for normal map generation")
+    parser.add_argument('--normal_strength', type=float, default=2.0, help="Strength of the Normal Map.")
+
 
     parser.add_argument('--inversion_prompt', type=str, default='')
     parser.add_argument('--extract-reverse', default=False, action='store_true', help="extract features during the denoising process")
