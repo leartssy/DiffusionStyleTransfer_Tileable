@@ -368,10 +368,14 @@ def generate_normal(image, pipe,strength=2.0):
     from PIL import Image, ImageFilter
     #test:blur the image before normal pipeline: brushstrokes and stylized effects less a problem
     #image = image.filter(ImageFilter.GaussianBlur(radius=2)) #gaussian blur
-    #bilateral filter
+   
+    
     import cv2
     image = cv2.cvtColor(np.array(image),cv2.COLOR_RGB2BGR)
-    smoothed = cv2.bilateralFilter(image,d=9,sigmaColor=25,sigmaSpace=20)
+    #median filter
+    image = cv2.medianBlur(image,7)
+    #bilateral filter
+    smoothed = cv2.bilateralFilter(image,d=15,sigmaColor=100,sigmaSpace=100)
     image = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
 
     #load image
