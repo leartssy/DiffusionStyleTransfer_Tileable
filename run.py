@@ -370,7 +370,7 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     #image = image.filter(ImageFilter.GaussianBlur(radius=2)) #gaussian blur
    
     
-    import cv
+    import cv2
     img_array = np.array(image)
     image_cv = cv2.cvtColor(img_array,cv2.COLOR_RGB2BGR)
     #median filter
