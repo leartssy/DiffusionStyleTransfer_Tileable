@@ -52,15 +52,17 @@ def run(opt):
     model_key = Path(opt.model_key)
     blip_diffusion_pipe = BLIP.from_pretrained(model_key, torch_dtype=torch.float16).to("cuda")
     
-    
+    #scheduler for Extrating Latents
     scheduler = PNDMScheduler.from_pretrained(model_key, subfolder="scheduler")
     scheduler.set_timesteps(opt.ddpm_steps)
+
     content_path = Path(opt.content_path)
     content_path = [f for f in content_path.glob('*')]
     style_path = Path(opt.style_path)
     style_path = [f for f in style_path.glob('*')]
     is_tileable = opt.is_tileable
     gen_normal = opt.gen_normal
+    alpha = opt.alpha
     
     extraction_path = "latents_reverse" if opt.extract_reverse else "latents_forward"
     base_save_path = os.path.join(opt.output_dir, extraction_path)
@@ -147,6 +149,9 @@ def run(opt):
 
     all_style_latents = []
     print("\n[STEP 2] Loading/Extracting Style Latents...")
+
+    num_style_steps = int(opt.ddpm_steps * (1.0 - opt.alpha))
+    
     for style_file in style_path:
         
         save_path = os.path.join(base_save_path, os.path.splitext(os.path.basename(style_file))[0])
@@ -156,7 +161,7 @@ def run(opt):
         aggregated_path = os.path.join(save_path, 'aggregated_latents.pt')
         style_latents = None
 
-        style_timesteps_to_save = timesteps_to_save[-int(opt.ddpm_steps*opt.alpha):]
+        style_timesteps_to_save = timesteps_to_save[-num_style_steps:] if num_style_steps > 0 else []
         
         if os.path.exists(aggregated_path):
             print(f"Loading aggregated latents for {style_file}...")
@@ -180,8 +185,7 @@ def run(opt):
             # Fallback to the slow, step-by-step loading
             print(f"Loading individual latents for {style_file} (Slow I/O)...")
             style_latents_list = []
-            # Note: Style latents only load up to the alpha threshold
-            num_style_steps = int(opt.ddpm_steps * opt.alpha) 
+            # Note: Style latents only load up to the alpha threshold 
             for t in trange(num_style_steps, desc="Loading Style Steps"):
                 latents_path = os.path.join(save_path, f'noisy_latents_{t}.pt')
                 if os.path.exists(latents_path):
@@ -196,9 +200,11 @@ def run(opt):
                 continue
 
         if style_latents is not None:
-            all_style_latents.append(style_latents)
+            all_style_latents.append(style_latents[:num_style_steps])
             
     print("\n[STEP 3] Running PNP Style Transfer...")
+    #set scheduler for generation phase
+    blip_diffusion_pipe.scheduler.set_timesteps(opt.ddim_steps)
     newly_generated_paths = []
     if is_tileable:
         print("Enabling circular padding for tileability...")
