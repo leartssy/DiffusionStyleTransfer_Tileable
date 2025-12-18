@@ -365,6 +365,9 @@ def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain
     return final_im
 
 def generate_normal(image, pipe,strength=2.0):
+    from PIL import Image, ImageFilter
+    #test:blur the image before normal pipeline: brushstrokes and stylized effects less a problem
+    image = image.filter(ImageFilter.GaussianBlur(radius=3))
 
     #load image
     normals = pipe(image,output_type="pt") #output math vectors
