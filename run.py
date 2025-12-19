@@ -375,7 +375,7 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     img_array = np.array(image)
     image_cv = cv2.cvtColor(img_array,cv2.COLOR_RGB2BGR)
     #median filter
-    image_cv = cv2.medianBlur(image_cv,3)
+    image_cv = cv2.medianBlur(image_cv,7)
     #bilateral filter
     smoothed = cv2.bilateralFilter(image_cv,d=7,sigmaColor=75,sigmaSpace=75)
     
