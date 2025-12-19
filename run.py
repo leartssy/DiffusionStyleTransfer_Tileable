@@ -56,10 +56,14 @@ def run(opt):
     scheduler = PNDMScheduler.from_pretrained(model_key, subfolder="scheduler")
     scheduler.set_timesteps(opt.ddpm_steps)
 
-    content_path = Path(opt.content_path)
-    content_path = [f for f in content_path.glob('*')]
-    style_path = Path(opt.style_path)
-    style_path = [f for f in style_path.glob('*')]
+    #content_path = Path(opt.content_path)
+    #content_path = [f for f in content_path.glob('*')]
+    #style_path = Path(opt.style_path)
+    #style_path = [f for f in style_path.glob('*')]
+
+    content_path = get_file_list(opt.content_path)
+    style_path = get_file_list(opt.style_path)
+
     is_tileable = opt.is_tileable
     gen_normal = opt.gen_normal
     alpha = opt.alpha
@@ -429,6 +433,18 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     #convert to PIL image
     final_im = Image.fromarray(image_uint8)
     return final_im
+
+def get_file_list(path_input):
+    #if input is single file, use single file, if path, use folder
+    path = Path(path_input)
+    if path.is_file():
+        return[path]
+    elif path.is_dir():
+        return [f for f in path.glob('*') if f.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp']]
+    else:
+        print(f"[WARNING] Path {path_input} not found.")
+        return[]
+
 
 def str_to_bool(value):
     if isinstance(value, bool):
