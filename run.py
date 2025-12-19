@@ -2,6 +2,10 @@ from transformers import CLIPTextModel, CLIPTokenizer, logging
 #from diffusers import AutoencoderKL, UNet2DConditionModel, DDIMScheduler
 from diffusers import PNDMScheduler
 from diffusers.pipelines import BlipDiffusionPipeline
+import subprocess
+import sys
+from color_matcher import ColorMatcher
+from color_matcher.io_handler import load_img_file, save_img_file, FILE_EXTS
 
 # suppress partial model loading warning
 logging.set_verbosity_error()
@@ -253,6 +257,12 @@ def run(opt):
                     im_origin_size=im_origin_size,
                     maintain_size=opt.maintain_size
                 )
+                #if color transfer off: correct the colors
+                color = False
+                if color == False:
+                    print("Performing Color correction...")
+                    final_im_blended = transfer_color(final_im_blended,content_file)
+
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
@@ -267,7 +277,7 @@ def run(opt):
                 generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                 newly_generated_paths.append(save_path)
                 print(f"Saved raw generated image to {save_path}")
-            
+    
 
     if gen_normal:
         print("Cleaning up Style Transfer model to free VRAM for Marigold...")
@@ -300,7 +310,12 @@ def run(opt):
             print(f"Saved final blended image to {save_path}")
             
             
-
+def transfer_color(source_image,target_image):
+    
+    target_image = target_image
+    cm = ColorMatcher()
+    final_image = cm.transfer(src=source_image, ref=target_image, method='mkl')
+    return final_image
 
 def blend_seams(image,gap,blur=3,min_ratio=0.2):
     #code adapted from: https://github.com/sagieppel/convert-image-into-seamless-tileable-texture/blob/main
