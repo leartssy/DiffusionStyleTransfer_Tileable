@@ -371,33 +371,38 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
    
     
     import cv2
+    #convert to BGR as opencv uses this
     img_array = np.array(image)
     image_cv = cv2.cvtColor(img_array,cv2.COLOR_RGB2BGR)
     #median filter
     image_cv = cv2.medianBlur(image_cv,7)
     #bilateral filter
     smoothed = cv2.bilateralFilter(image_cv,d=15,sigmaColor=100,sigmaSpace=100)
-    clean_image_pil = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
-
-    #load image
-    output = pipe(clean_image_pil,output_type="pt") #output math vectors
-    #for strength calculations
-    normals = output.prediction
-    #permute to bring into right order: (Batch,Height,Width,Channels)
-    normals = normals.permute(0,2,3,1)
+    
     #find the edges and sharpen them
     #covnert to greyscale
     gray_smoothed = cv2.cvtColor(smoothed, cv2.COLOR_BGR2GRAY)
     laplacian = cv2.Laplacian(gray_smoothed,cv2.CV_32F)#laplacian to find rock edges
     laplacian = (laplacian - laplacian.min()) / (laplacian.max()-laplacian.min() + 1e-6)
     laplacian = (laplacian * 2.0) -1.0
-    detail_map = torch.from_numpy(laplacian).to(normals.device).unsqueeze(0).unsqueeze(-1)
+    detail_map = laplacian    
+    clean_image_pil = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
+
+    #load image
+    output = pipe(clean_image_pil,output_type="pt",ensemble_size=10) #output math vectors
+    #for strength calculations
+    normals = output.prediction
+    #permute to bring into right order: (Batch,Height,Width,Channels)
+    normals = normals.permute(0,2,3,1)
+    
     #adjust normal strength
     #seperate: format: Batch,Height,Width,Channels
     #: -> take everything, 0:1 -> start at 0, stop at 1 -> take only first channel
     x_normals = normals[:,:,:,0:1]
     y_normals = normals[:,:,:,1:2]
     z_normals = normals[:,:,:,2:3]
+    detail_map = torch.from_numpy(detail_map).to(normals.device).unsqueeze(0).unsqueeze(-1)
+
 
     #scale only x and y -> make surface look bumpier
     scaled_x_normals = x_normals * strength + detail_map * detail_boost
