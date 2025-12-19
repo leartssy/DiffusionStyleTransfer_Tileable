@@ -389,7 +389,7 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     clean_image_pil = Image.fromarray(cv2.cvtColor(smoothed,cv2.COLOR_BGR2RGB))
 
     #load image
-    output = pipe(clean_image_pil,output_type="pt",ensemble_size=10) #output math vectors
+    output = pipe(clean_image_pil,output_type="pt") #output math vectors
     #for strength calculations
     normals = output.prediction
     #permute to bring into right order: (Batch,Height,Width,Channels)
