@@ -260,10 +260,11 @@ def run(opt):
                 )
                 #if color transfer off: correct the colors
                 color = False
+                intensity = 0.5
                 source_image = final_im_blended
                 if color == False:
                     print("Performing Color correction...")
-                    final_im_blended = transfer_color(source_image,content_file)
+                    final_im_blended = transfer_color(source_image,content_file,intensity)
 
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
@@ -312,12 +313,14 @@ def run(opt):
             print(f"Saved final blended image to {save_path}")
             
             
-def transfer_color(source_image,target_image):
+def transfer_color(source_image,target_image,intensity):
     
     target_image = load_img_file(str(target_image))
     cm = ColorMatcher()
-    final_image = cm.transfer(src=source_image, ref=target_image, method='mkl')
-    final_image = Normalizer(final_image).uint8_norm()
+    transferred_image = cm.transfer(src=source_image, ref=target_image, method='mkl')
+    transferred_image = Normalizer(transferred_image).uint8_norm()
+    #integrate intensity
+    final_image = (intensity * transferred_image) + ((1.0 - intensity) * source_image)
     return final_image
 
 def blend_seams(image,gap,blur=3,min_ratio=0.2):
