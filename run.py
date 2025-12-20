@@ -259,10 +259,11 @@ def run(opt):
                     maintain_size=opt.maintain_size
                 )
                 #if color transfer off: correct the colors
-                color = False
-                intensity = 0.5
-                source_image = final_im_blended
-                if color == False:
+                color_strength = opt.color_strength
+                if color_strength < 1.0:
+
+                    intensity = 1- color_strength
+                    source_image = final_im_blended
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
 
@@ -501,6 +502,9 @@ if __name__ == "__main__":
     parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
     parser.add_argument('--is_tileable', type=str_to_bool, default=False, help="Set to true or False for circular padding")
     parser.add_argument('--gen_normal', type=str_to_bool, default=False, help="Set to true or False for normal map generation")
+    parser.add_argument('--color_strength', type=float, default=1.0, help="Strength of the color of style image for transfer (0.0-1.0).")
+
+
     parser.add_argument('--normal_strength', type=float, default=2.0, help="Strength of the Normal Map.")
 
 
