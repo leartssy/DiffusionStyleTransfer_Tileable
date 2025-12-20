@@ -6,6 +6,7 @@ import subprocess
 import sys
 from color_matcher import ColorMatcher
 from color_matcher.io_handler import load_img_file, save_img_file, FILE_EXTS
+from color_matcher.normalizer import Normalizer
 
 # suppress partial model loading warning
 logging.set_verbosity_error()
@@ -312,9 +313,11 @@ def run(opt):
             
 def transfer_color(source_image,target_image):
     
-    target_image = target_image
+    source_image = load_img_file(str(source_image))
+    target_image = load_img_file(str(target_image))
     cm = ColorMatcher()
     final_image = cm.transfer(src=source_image, ref=target_image, method='mkl')
+    final_image = Normalizer(final_image).uint8_norm()
     return final_image
 
 def blend_seams(image,gap,blur=3,min_ratio=0.2):
