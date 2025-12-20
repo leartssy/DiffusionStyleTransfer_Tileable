@@ -260,9 +260,10 @@ def run(opt):
                 )
                 #if color transfer off: correct the colors
                 color = False
+                source_image = final_im_blended
                 if color == False:
                     print("Performing Color correction...")
-                    final_im_blended = transfer_color(final_im_blended,content_file)
+                    final_im_blended = transfer_color(source_image,content_file)
 
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
@@ -313,7 +314,6 @@ def run(opt):
             
 def transfer_color(source_image,target_image):
     
-    source_image = load_img_file(str(source_image))
     target_image = load_img_file(str(target_image))
     cm = ColorMatcher()
     final_image = cm.transfer(src=source_image, ref=target_image, method='mkl')
