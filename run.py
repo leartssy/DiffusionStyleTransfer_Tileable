@@ -321,7 +321,7 @@ def transfer_color(source_image,target_image,intensity):
     transferred_image = Normalizer(transferred_image).uint8_norm()
     #integrate intensity
     final_image = (intensity * transferred_image) + ((1.0 - intensity) * source_image)
-    return final_image
+    return np.clip(final_image, 0, 1)
 
 def blend_seams(image,gap,blur=3,min_ratio=0.2):
     #code adapted from: https://github.com/sagieppel/convert-image-into-seamless-tileable-texture/blob/main
