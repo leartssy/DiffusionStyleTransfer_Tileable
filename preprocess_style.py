@@ -89,7 +89,7 @@ class Preprocess(nn.Module):
     def load_img(self, image_path):
         #old:image_pil = T.Resize(512)(Image.open(image_path).convert("RGB"))
         #for security: force square size
-        image_pil = T.Resize(512)(Image.open(image_path).convert("RGB"))
+        image_pil = T.Resize(512,max_size=512)(Image.open(image_path).convert("RGB"))
         image = T.ToTensor()(image_pil).unsqueeze(0).to(self.device)
         return image
 
