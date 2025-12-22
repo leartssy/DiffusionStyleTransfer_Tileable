@@ -36,6 +36,7 @@ def make_model_circular(unet_model):
     """
     Patches a Stable Diffusion/BLIP-Diffusion U-Net to use circular padding.
     """
+    count=0
     for name, module in unet_model.named_modules():
         # Find all 2D Convolutional layers
         if isinstance(module, nn.Conv2d):
@@ -44,11 +45,12 @@ def make_model_circular(unet_model):
             if isinstance(module.padding, tuple):
                  if module.padding[0] > 0 or module.padding[1] > 0:
                      module.padding_mode = 'circular'
+                     count +=1
             elif isinstance(module.padding, int):
                  if module.padding > 0:
                      module.padding_mode = 'circular'
 
-    print("Circular padding enabled on U-Net.")
+    print(f"Circular padding enabled on U-Net on {count} layers.")
     return unet_model
 
 
