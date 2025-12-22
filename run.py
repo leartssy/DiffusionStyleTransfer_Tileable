@@ -234,7 +234,7 @@ def run(opt):
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
-            
+            output_size = 1024
             
             if is_tileable:
                 print("Blending Image Seams...")
@@ -269,7 +269,7 @@ def run(opt):
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
                 #upscaling
-                output_size = 1024
+                
                 if output_size != final_im_blended.shape[0]:
                     print(f"Upscaling to {output_size}px...")
                     final_im_blended = cv2.resize(final_im_blended, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
