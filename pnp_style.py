@@ -34,6 +34,9 @@ def load_img1(self, image_path):
         crop = T.CenterCrop(512)
         image_pil = resize(image_pil)
         image_pil = crop(image_pil)
+        #safety if it were a tuple
+        if isinstance(image_pil, tuple):
+            image_pil = image_pil[0]
         return image_pil
 
 
