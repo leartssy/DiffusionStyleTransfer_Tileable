@@ -234,7 +234,7 @@ def run(opt):
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
-            output_size = 1024
+            output_size = 2048
             
             if is_tileable:
                 print("Blending Image Seams...")
