@@ -268,7 +268,11 @@ def run(opt):
                     source_image = final_im_blended
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
-
+                #upscaling
+                output_size = 1024
+                if output_size != final_im_blended.shape[0]:
+                    print(f"Upscaling to {output_size}px...")
+                    final_im_blended = cv2.resize(final_im_blended, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
@@ -278,6 +282,10 @@ def run(opt):
                 print(f"Saved final blended image to {save_path}")
 
             else:
+                #upscaling
+                if output_size != generated_image_pil.shape[0]:
+                    print(f"Upscaling to {output_size}px...")
+                    generated_image_pil = cv2.resize(generated_image_pil, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 generated_image_pil.save(save_path) # Use PIL's save method for the raw image
