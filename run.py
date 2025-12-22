@@ -305,7 +305,32 @@ def run(opt):
             input_img = Image.open(img_path).convert("RGB")
 
             final_normal = generate_normal(input_img, marigold_pipe,strength)
-            
+
+            if is_tileable: #Also get rid of newly created seams in normal map
+                print("Blending Normal Seams...")
+                #integrate seam blending
+                #convert PIL image to cv2 format
+                im_np = np.array(final_normal.convert('RGB'))
+                #determine gap size
+                im_h, im_w , _ = im_np.shape
+                #if gas is <1: treat as fraction of height, else as pixelwidth
+                if opt.gap <1:
+                    gap_px = int(min(im_h, im_w) * opt.gap)
+                else:
+                    gap_px = int(opt.gap)
+
+                #store original image size
+                im_origin_size = (im_w, im_h)
+                #Apply the blending
+                final_normal = apply_seam_blending(
+                    im_np,
+                    gap_px,
+                    opt.blurring,
+                    opt.min_ratio,
+                    im_origin_size=im_origin_size,
+                    maintain_size=opt.maintain_size
+                )
+                final_normal = Image.fromarray(final_normal)
             #Save the normal map
             base_name = img_path.stem
             out_fn = f"{base_name}_normal.png"
