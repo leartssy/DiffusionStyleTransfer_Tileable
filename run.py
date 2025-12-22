@@ -235,8 +235,8 @@ def run(opt):
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
             
-            is_seams = False
-            if is_seams:
+            
+            if is_tileable:
                 print("Blending Image Seams...")
                 #integrate seam blending
                 #convert PIL image to cv2 format
