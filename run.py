@@ -159,7 +159,7 @@ def run(opt):
     all_style_latents = []
     print("\n[STEP 2] Loading/Extracting Style Latents...")
 
-    num_style_steps = int(opt.ddpm_steps * (1.0 - opt.alpha))
+    num_style_steps = int(opt.ddpm_steps)
     
     for style_file in style_path:
         
