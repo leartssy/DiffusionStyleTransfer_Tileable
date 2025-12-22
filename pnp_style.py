@@ -29,7 +29,11 @@ from textile.utils.image_utils import read_and_process_image
 import torch.nn.functional as F
 
 def load_img1(self, image_path):
-        image_pil = T.Resize(512),T.CenterCrop(512)(Image.open(image_path).convert("RGB"))
+        image_pil = Image.open(image_path).convert("RGB")
+        resize = T.Resize(512)
+        crop = T.CenterCrop(512)
+        image_pil = resize(image_pil)
+        image_pil = crop(image_pil)
         return image_pil
 
 
