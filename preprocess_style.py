@@ -89,8 +89,13 @@ class Preprocess(nn.Module):
     def load_img(self, image_path):
         #old:image_pil = T.Resize(512)(Image.open(image_path).convert("RGB"))
         #for security: force square size
-        image_pil = T.Resize(512),T.CenterCrop(512)(Image.open(image_path).convert("RGB"))
-        image = T.ToTensor()(image_pil).unsqueeze(0).to(self.device)
+        image_pil = Image.open(image_path).convert("RGB")
+        resize = T.Resize(512)
+        crop = T.CenterCrop(512)
+        to_tensor = T.ToTensor()
+        image_pil = resize(image_pil)
+        image_pil = crop(image_pil)
+        image = to_tensor(image_pil).unsqueeze(0).to(self.device)
         return image
 
     @torch.no_grad()
