@@ -231,6 +231,12 @@ def run(opt):
             generated_images_list = pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
             generated_image_pil = generated_images_list[0]
             torch.cuda.empty_cache()
+            #preserve alpha
+            original_content = Image.open(content_file)
+            original_alpha = None
+            if original_content.mode == 'RGBA':
+                print(f"Preserving Alpha Channel from {content_file.name}")
+                original_alpha = original_content.split()[-1] #last channel is alpha
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
@@ -273,15 +279,31 @@ def run(opt):
                 if output_size != final_im_blended.shape[0]:
                     print(f"Upscaling to {output_size}px...")
                     final_im_blended = cv2.resize(final_im_blended, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
+                
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
-                #covnert rgb numpy back to bgr for opencv saving
-                cv2.imwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
+                #apply alpha
+                if original_alpha is not None:
+                    final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
+                    final_im_rgba = cv2.merge([
+                        final_im_blended[:,:,0],
+                        final_im_blended[:,:,1],
+                        final_im_blended[:,:,2],
+                        np.array(final_alpha)
+                    ])
+                    #save with alpha
+                    cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
+                
+                else:
+                    #covnert rgb numpy back to bgr for opencv saving
+                    cv2.imwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
+
                 newly_generated_paths.append(save_path)
                 print(f"Saved final blended image to {save_path}")
 
             else:
+    
                 #convert pil to numpy for resizing
                 generated_image_pil = np.array(generated_image_pil.convert('RGB'))
                 #upscaling
@@ -290,8 +312,20 @@ def run(opt):
                     generated_image_pil = cv2.resize(generated_image_pil, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
-                #generated_image_pil.save(save_path) # Use PIL's save method for the raw image
-                cv2.imwrite(save_path, cv2.cvtColor(generated_image_pil, cv2.COLOR_RGB2BGR))
+                #apply alpha
+                if original_alpha is not None:
+                    final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
+                    final_im_rgba = cv2.merge([
+                        final_im_blended[:,:,0],
+                        final_im_blended[:,:,1],
+                        final_im_blended[:,:,2],
+                        np.array(final_alpha)
+                    ])
+                    #save with alpha
+                    cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
+                else:
+                    #generated_image_pil.save(save_path) # Use PIL's save method for the raw image
+                    cv2.imwrite(save_path, cv2.cvtColor(generated_image_pil, cv2.COLOR_RGB2BGR))
                 newly_generated_paths.append(save_path)
                 print(f"Saved raw generated image to {save_path}")
     
