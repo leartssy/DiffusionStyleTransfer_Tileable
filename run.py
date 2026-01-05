@@ -371,6 +371,13 @@ def run(opt):
             output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
             output_tensor = np.moveaxis(output_tensor, 0, -1)
             current_image = Image.fromarray((output_tensor * 255).astype(np.uint8))
+            #back to expected image size
+            # This prevents the 2080px (padded) vs 2048px (intended) drift
+            expected_w = orig_w * (4 ** upscale_count)
+            expected_h = orig_h * (4 ** upscale_count)
+            if current_image.size[0] > expected_w or current_image.size[1] > expected_h:
+                    current_image = current_image.resize((expected_w, expected_h), resample=Image.LANCZOS)
+            
             #safety break
             if upscale_count >=3:break
         # scale to desired size
