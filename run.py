@@ -377,9 +377,18 @@ def run(opt):
             upscaled_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
             upscaled_image.putalpha(upscaled_alpha)
 
-        high_res_path = str(img_path).replace(".png", "_HDR.png")
+        high_res_path = str(img_path).replace(".png", "_raw.png")
         upscaled_image.save(high_res_path)
         final_high_res_paths.append(high_res_path)
+        # DELETE the low-resolution preview image
+        # check if the file exists and ensure not deleting the file just saved
+        if os.path.exists(img_path) and str(img_path) != final_high_res_paths:
+            try:
+                os.remove(img_path)
+                print(f"   > [CLEANUP] Deleted preview: {os.path.basename(img_path)}")
+            except Exception as e:
+                print(f"   > [WARNING] Could not delete preview: {e}")
+
         print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
     # Cleanup
     del upscaler, processor
@@ -398,7 +407,7 @@ def run(opt):
         strength = opt.normal_strength
 
         #normal map generation
-        for img_path_str in newly_generated_paths:
+        for img_path_str in final_high_res_paths:
             img_path = Path(img_path_str)
             input_img = Image.open(img_path).convert("RGB")
 
