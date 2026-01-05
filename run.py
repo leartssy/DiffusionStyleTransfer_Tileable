@@ -324,12 +324,11 @@ def run(opt):
                     print("Preserving Alpha...")
                     final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
                     # final_im_blended is RGB numpy array
-                    res_rgb_pil = Image.fromarray(final_im_blended).convert("RGB")
+                    res_rgb_pil = Image.fromarray(generated_image).convert("RGB")
                     final_output_pil = Image.merge("RGBA", (*res_rgb_pil.split(), final_alpha))
                     final_output_pil.save(save_path, "PNG")
                     print(f"Saved with Alpha: {save_path}")
-                    
-                
+                                   
                 else:
                     #generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                     cv2.imwrite(save_path, cv2.cvtColor(generated_image, cv2.COLOR_RGB2BGR))
