@@ -282,6 +282,7 @@ def run(opt):
                 save_path = os.path.join(opt.output_dir, out_fn)
                 #apply alpha
                 if original_alpha is not None:
+                    print("Preserving Alpha...")
                     final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
                     final_im_rgba = cv2.merge([
                         final_im_blended[:,:,0],
@@ -313,6 +314,7 @@ def run(opt):
                 save_path = os.path.join(opt.output_dir, out_fn)
                 #apply alpha
                 if original_alpha is not None:
+                    print("Preserving Alpha...")
                     final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
                     final_im_rgba = cv2.merge([
                         generated_image[:,:,0],
