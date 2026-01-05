@@ -319,12 +319,18 @@ def run(opt):
                 print(f"Saved raw generated image to {save_path}")
     
     #upscaling
-    #option to keep aspect ratio
+    
     print(f"\n[CLEANUP]Cleanup for upscaling...")
-    del blip_diffusion_pipe
-    del pnp
+    #clean up
+    if 'blip_diffusion_pipe' in locals(): del blip_diffusion_pipe
+    if 'pnp' in locals(): del pnp
+    if 'model' in locals(): del model
+    
+    import gc
+    gc.collect()
     torch.cuda.empty_cache()
     final_high_res_paths = []
+
     print(f"\n[STEP 2] AI Upscaling {len(newly_generated_paths)} images...")
     from transformers import Swin2SRImageProcessor, Swin2SRForImageSuperResolution
     #load upscaler once
@@ -332,10 +338,22 @@ def run(opt):
     processor = Swin2SRImageProcessor.from_pretrained(model_id)
     upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device)
     
-    for img_path in newly_generated_paths:
+    for img_path_str in newly_generated_paths:
+        img_path = Path(img_path_str)   
         print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
         image = Image.open(img_path).convert("RGB")
-
+        #option to keep aspect ratio
+        orig_w, orig_h = image.size
+        if opt.keep_aspect_ratio:
+                # Scale the largest dimension to out_size
+                if orig_w >= orig_h:
+                    target_w = opt.out_size
+                    target_h = int(orig_h * (opt.out_size / orig_w))
+                else:
+                    target_h = opt.out_size
+                    target_w = int(orig_w * (opt.out_size / orig_h))
+        else:
+                target_w, target_h = opt.out_size, opt.out_size
         # Prepare input
         inputs = processor(image, return_tensors="pt").to(opt.device)
         
@@ -347,17 +365,22 @@ def run(opt):
         output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
         output_tensor = np.moveaxis(output_tensor, 0, -1)
         upscaled_image = Image.fromarray((output_tensor * 255).astype(np.uint8))
-
-        # Re-attach Alpha (Swin2SR only does RGB)
-        original_rgba = Image.open(img_path).convert("RGBA")
-        alpha = original_rgba.split()[-1]
-        upscaled_alpha = alpha.resize(upscaled_image.size, resample=Image.LANCZOS)
-        upscaled_image.putalpha(upscaled_alpha)
+        # scale to desired size
+        # Swin2SR always outputs 4x. We resize its output to the user's specific target.
+        if upscaled_image.size != (target_w, target_h):
+            print(f"   > Adjusting size to {target_w}x{target_h}...")
+            upscaled_image = upscaled_image.resize((target_w, target_h), resample=Image.LANCZOS)
+        # reattach alpha
+        with Image.open(img_path).convert("RGBA") as original_rgba:
+            alpha = original_rgba.split()[-1]
+            # Match alpha to the final target size
+            upscaled_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
+            upscaled_image.putalpha(upscaled_alpha)
 
         high_res_path = img_path.replace(".png", "_HDR.png")
         upscaled_image.save(high_res_path)
         final_high_res_paths.append(high_res_path)
-
+        print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
     # Cleanup
     del upscaler, processor
     torch.cuda.empty_cache()
