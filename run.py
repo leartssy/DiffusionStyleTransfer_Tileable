@@ -72,6 +72,7 @@ def run(opt):
     style_path = get_file_list(opt.style_path)
 
     is_tileable = opt.is_tileable
+    out_size = opt.out_size
     gen_normal = opt.gen_normal
     alpha = opt.alpha
     
@@ -247,7 +248,7 @@ def run(opt):
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
-            output_size = 2048
+            output_size = out_size
             
             if is_tileable:
                 print("Blending Image Seams...")
@@ -607,6 +608,8 @@ if __name__ == "__main__":
     parser.add_argument('--min_ratio',type=float, default=0.2, help='Used to ensure balanced blending')
     parser.add_argument('--blurring',type=int, default=3,choices=range(1,10,2), help="Size of Gaussian blur to make merging softer.Use odd numbers only.")
     parser.add_argument('--maintain_size',type=bool, default=False,help="maintain images default size")
+    parser.add_argument('--out_size',type=int, default=2048, help="Output image size")
+
 
     opt = parser.parse_args()
 
