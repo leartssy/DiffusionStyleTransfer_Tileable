@@ -283,10 +283,25 @@ def run(opt):
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
                 #upscaling
-                
-                if output_size != final_im_blended.shape[0]:
+                #option to keep original aspect ratio
+                content_path_str = str(content_file)
+                with Image.open(content_path_str) as temp_img:
+                    orig_w, orig_h = temp_img.size
+                if opt.keep_aspect_ratio:
+                    # Calculate new height/width based on the longest side being 'out_size'
+                    if orig_w >= orig_h:
+                        new_w = opt.out_size
+                        new_h = int(opt.out_size * (orig_h / orig_w))
+                    else:
+                        new_h = opt.out_size
+                        new_w = int(opt.out_size * (orig_w / orig_h))
+                    target_dims = (new_w, new_h)
+                else:
+                    target_dims = (opt.out_size, opt.out_size)
+
+                if target_dims != (generated_image_np.shape[1],final_im_blended.shape[0]):
                     print(f"Upscaling to {output_size}px...")
-                    final_im_blended = cv2.resize(final_im_blended, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
+                    final_im_blended = cv2.resize(final_im_blended, target_dims,interpolation=cv2.INTER_LANCZOS4)
                 
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
@@ -297,7 +312,7 @@ def run(opt):
                 #if original_alpha is not None:
                    # print("Preserving Alpha...")
                     
-                   # final_alpha = np.array(original_alpha.resize((output_size,output_size), Image.LANCZOS)) #resize alpha
+                   # final_alpha = np.array(original_alpha.resize(target_dims, Image.LANCZOS)) #resize alpha
                     
                     #final_im_rgba = np.dstack([
                         #final_im_blended[:,:,0],
@@ -324,22 +339,43 @@ def run(opt):
                 #convert pil to numpy for resizing
                 generated_image_np = np.array(generated_image_pil.convert('RGB'))
                 #upscaling
-                if output_size != generated_image_np.shape[0]:
+                #option to keep aspect ratio
+                content_path_str = str(content_file)
+                with Image.open(content_path_str) as temp_img:
+                    orig_w, orig_h = temp_img.size
+                if opt.keep_aspect_ratio:
+                    # Calculate new height/width based on the longest side being 'out_size'
+                    if orig_w >= orig_h:
+                        new_w = opt.out_size
+                        new_h = int(opt.out_size * (orig_h / orig_w))
+                    else:
+                        new_h = opt.out_size
+                        new_w = int(opt.out_size * (orig_w / orig_h))
+                    target_dims = (new_w, new_h)
+                else:
+                    target_dims = (opt.out_size, opt.out_size)
+
+                if target_dims != (generated_image_np.shape[1],generated_image_np.shape[0]):
                     print(f"Upscaling to {output_size}px...")
-                    generated_image = cv2.resize(generated_image_np, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
+                    generated_image = cv2.resize(generated_image_np, target_dims,interpolation=cv2.INTER_LANCZOS4)
+
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
+                
+                
                 #apply alpha
                 if original_alpha is not None:
                     print("Preserving Alpha...")
                     
-                    final_alpha = np.array(original_alpha.resize((output_size,output_size), Image.LANCZOS)) #resize alpha
+                    final_alpha = np.array(original_alpha.resize(target_dims, Image.LANCZOS)) #resize alpha
                     final_im_rgba = cv2.merge([
                         generated_image[:,:,0],
                         generated_image[:,:,1],
                         generated_image[:,:,2],
                         np.array(final_alpha)
                     ])
+
+                    
                     cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
                                    
                 else:
@@ -609,7 +645,9 @@ if __name__ == "__main__":
     parser.add_argument('--blurring',type=int, default=3,choices=range(1,10,2), help="Size of Gaussian blur to make merging softer.Use odd numbers only.")
     parser.add_argument('--maintain_size',type=bool, default=False,help="maintain images default size")
     parser.add_argument('--out_size',type=int, default=2048, help="Output image size")
+    parser.add_argument('--keep_aspect_ratio',type=bool, default=True,help="Keep original aspect ratio of content image")
 
+    
 
     opt = parser.parse_args()
 
