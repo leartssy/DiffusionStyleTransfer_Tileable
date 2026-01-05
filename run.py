@@ -232,11 +232,8 @@ def run(opt):
             generated_image_pil = generated_images_list[0]
             torch.cuda.empty_cache()
             #preserve alpha
-            original_content = Image.open(content_file)
-            original_alpha = None
-            if original_content.mode == 'RGBA':
-                print(f"Preserving Alpha Channel from {content_file.name}")
-                original_alpha = original_content.split()[-1] #last channel is alpha
+            with Image.open(content_file) as temp_img:
+                original_alpha = temp_img.split()[-1] if temp_img.mode == 'RGBA' else None
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
