@@ -289,8 +289,11 @@ def run(opt):
                         final_im_blended[:,:,2],
                         np.array(final_alpha)
                     ])
-                    #save with alpha
-                    cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
+                    #save with alpha using PIL
+                    final_output_pil = Image.fromarray(final_im_rgba)
+                    final_output_pil.save(save_path, "PNG", optimize=False)
+                    
+                    
                 
                 else:
                     #covnert rgb numpy back to bgr for opencv saving
@@ -313,13 +316,14 @@ def run(opt):
                 if original_alpha is not None:
                     final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
                     final_im_rgba = cv2.merge([
-                        final_im_blended[:,:,0],
-                        final_im_blended[:,:,1],
-                        final_im_blended[:,:,2],
+                        generated_image_pil[:,:,0],
+                        generated_image_pil[:,:,1],
+                        generated_image_pil[:,:,2],
                         np.array(final_alpha)
                     ])
-                    #save with alpha
-                    cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
+                    #save with alpha using PIL
+                    final_output_pil = Image.fromarray(final_im_rgba)
+                    final_output_pil.save(save_path, "PNG", optimize=False)
                 else:
                     #generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                     cv2.imwrite(save_path, cv2.cvtColor(generated_image_pil, cv2.COLOR_RGB2BGR))
