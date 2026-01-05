@@ -377,7 +377,7 @@ def run(opt):
             upscaled_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
             upscaled_image.putalpha(upscaled_alpha)
 
-        high_res_path = str(img_path).replace(".png", "_raw.png")
+        high_res_path = str(img_path)#.replace(".png", "_raw.png")
         upscaled_image.save(high_res_path)
         final_high_res_paths.append(high_res_path)
         # DELETE the low-resolution preview image
