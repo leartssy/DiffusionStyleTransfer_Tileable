@@ -322,18 +322,18 @@ def run(opt):
             else:
     
                 #convert pil to numpy for resizing
-                generated_image_pil = np.array(generated_image_pil.convert('RGB'))
+                generated_image_np = np.array(generated_image_pil.convert('RGB'))
                 #upscaling
-                if output_size != generated_image_pil.shape[0]:
+                if output_size != generated_image_np.shape[0]:
                     print(f"Upscaling to {output_size}px...")
-                    generated_image = cv2.resize(generated_image_pil, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
+                    generated_image = cv2.resize(generated_image_np, (output_size,output_size),interpolation=cv2.INTER_LANCZOS4)
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 #apply alpha
                 if original_alpha is not None:
                     print("Preserving Alpha...")
                     
-                    final_alpha = np.array(original_alpha.resize(output_size,output_size), Image.LANCZOS) #resize alpha
+                    final_alpha = np.array(original_alpha.resize((output_size,output_size), Image.LANCZOS)) #resize alpha
                     final_im_rgba = cv2.merge([
                         generated_image[:,:,0],
                         generated_image[:,:,1],
