@@ -222,7 +222,8 @@ def run(opt):
         print("Enabling circular padding for tileability...")
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
         pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
-
+    
+    base_res_path = []
 
     # The main execution loop is now ready to run without loading bottlenecks
     for content_latents, content_file in zip(all_content_latents, content_path):
@@ -282,109 +283,25 @@ def run(opt):
                     source_image = final_im_blended
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
-                #upscaling
-                #option to keep original aspect ratio
-                content_path_str = str(content_file)
-                with Image.open(content_path_str) as temp_img:
-                    orig_w, orig_h = temp_img.size
-                if opt.keep_aspect_ratio:
-                    # Calculate new height/width based on the longest side being 'out_size'
-                    if orig_w >= orig_h:
-                        new_w = opt.out_size
-                        new_h = int(opt.out_size * (orig_h / orig_w))
-                    else:
-                        new_h = opt.out_size
-                        new_w = int(opt.out_size * (orig_w / orig_h))
-                    target_dims = (new_w, new_h)
-                else:
-                    target_dims = (opt.out_size, opt.out_size)
 
                 #normal blurry upscale
                 #if target_dims != (final_im_blended.shape[1],final_im_blended.shape[0]):
                     #print(f"Upscaling to {output_size}px...")
                     #final_im_blended = cv2.resize(final_im_blended, target_dims,interpolation=cv2.INTER_LANCZOS4)
-                #ai upscale
-
-                if target_dims[0] > final_im_blended.shape[1]:
-                    print("Cleaning up BLIP-Diffusion to free VRAM for Upscaler...")
-                    del blip_diffusion_pipe
-                    del pnp
-                    if 'model' in locals(): del model # Cleanup Preprocess model
-                    torch.cuda.empty_cache()
-                    print(f"AI Upscaling to {target_dims}...")
-                    # Convert numpy back to PIL for the upscaler
-                    temp_pil = Image.fromarray(final_im_blended)
-                    upscaled_pil = upscale_image_ai(temp_pil, opt.inversion_prompt, opt.device)
-                    # Final fit to exact target_dims
-                    upscaled_pil = upscaled_pil.resize(target_dims, Image.LANCZOS)
-                    final_im_blended = np.array(upscaled_pil.convert('RGB'))
-
+                generated_image_pil = Image.fromarray(final_im_blended)
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 
                 #don´t apply alpha because old doesn´t match tiled
-                #apply alpha
-                #if original_alpha is not None:
-                   # print("Preserving Alpha...")
-                    
-                   # final_alpha = np.array(original_alpha.resize(target_dims, Image.LANCZOS)) #resize alpha
-                    
-                    #final_im_rgba = np.dstack([
-                        #final_im_blended[:,:,0],
-                        #final_im_blended[:,:,1],
-                        #final_im_blended[:,:,2],
-                       # final_alpha
-                   # ])
-                    
-                    #cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
-                    #print(f"Saved Tiled with Alpha: {save_path}")
-
-                    
                 
-                #else:
-                    #covnert rgb numpy back to bgr for opencv saving
-                cv2.imwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
                 print("Saved witout Alpha")
-
+                generated_image_pil.save(save_path)
                 newly_generated_paths.append(save_path)
                 print(f"Saved final blended image to {save_path}")
 
             else:
-    
-                #convert pil to numpy for resizing
-                generated_image_np = np.array(generated_image_pil.convert('RGB'))
-                #upscaling
-                #option to keep aspect ratio
-                content_path_str = str(content_file)
-                with Image.open(content_path_str) as temp_img:
-                    orig_w, orig_h = temp_img.size
-                if opt.keep_aspect_ratio:
-                    # Calculate new height/width based on the longest side being 'out_size'
-                    if orig_w >= orig_h:
-                        new_w = opt.out_size
-                        new_h = int(opt.out_size * (orig_h / orig_w))
-                    else:
-                        new_h = opt.out_size
-                        new_w = int(opt.out_size * (orig_w / orig_h))
-                    target_dims = (new_w, new_h)
-                else:
-                    target_dims = (opt.out_size, opt.out_size)
-
-                if target_dims[0] > generated_image_np.shape[1]:
-                    print("Cleaning up BLIP-Diffusion to free VRAM for Upscaler...")
-                    del blip_diffusion_pipe
-                    del pnp
-                    if 'model' in locals(): del model # Cleanup Preprocess model
-                    torch.cuda.empty_cache()
-                    print(f"AI Upscaling to {target_dims}...")
-                    upscaled_pil = upscale_image_ai(generated_image_pil, opt.inversion_prompt, opt.device)
-                    # Final fit
-                    generated_image_pil = upscaled_pil.resize(target_dims, Image.LANCZOS)
-                    generated_image = np.array(generated_image_pil.convert('RGB'))
-                else:
-                    generated_image = generated_image_np
-
+                
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 
@@ -393,28 +310,55 @@ def run(opt):
                 if original_alpha is not None:
                     print("Preserving Alpha...")
                     
-                    final_alpha = np.array(original_alpha.resize(target_dims, Image.LANCZOS)) #resize alpha
-                    final_im_rgba = cv2.merge([
-                        generated_image[:,:,0],
-                        generated_image[:,:,1],
-                        generated_image[:,:,2],
-                        np.array(final_alpha)
-                    ])
-
+                    alpha_resized = original_alpha.resize(generated_image_pil.size, Image.LANCZOS)
+                    generated_image_pil.putalpha(alpha_resized)
                     
-                    cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
+                generated_image_pil.save(save_path)
                                    
-                else:
-                    #generated_image_pil.save(save_path) # Use PIL's save method for the raw image
-                    cv2.imwrite(save_path, cv2.cvtColor(generated_image, cv2.COLOR_RGB2BGR))
                 newly_generated_paths.append(save_path)
                 print(f"Saved raw generated image to {save_path}")
     
+    #upscaling
+    #option to keep aspect ratio
+    print(f"\n[CLEANUP]Cleanup for upscaling...")
+    del blip_diffusion_pipe
+    del pnp
+    del model
+    torch.cuda.empty_cache()
+    final_high_res_paths = []
+    print(f"\n[STEP 2] AI Upscaling {len(newly_generated_paths)} images...")
+    from diffusers import StableDiffusionUpscalePipeline
+    #load upscaler once
+    upscaler = StableDiffusionUpscalePipeline.from_pretrained(
+            "stabilityai/stable-diffusion-x4-upscaler", 
+            revision="fp16", 
+            torch_dtype=torch.float16
+        ).to(opt.device)
+    for img_path in newly_generated_paths:
+        temp_pil = Image.open(img_path)
+        # Handle Alpha during upscale
+        original_rgba = temp_pil.convert("RGBA")
+        alpha = original_rgba.split()[-1]
+        
+        upscaled_image = upscaler(
+            prompt=opt.inversion_prompt,
+            image=temp_pil.convert("RGB"),
+            guidance_scale=7.5,
+            num_inference_steps=20
+        ).images[0]
+
+        # Re-attach Alpha
+        upscaled_alpha = alpha.resize(upscaled_image.size, resample=Image.LANCZOS)
+        upscaled_image.putalpha(upscaled_alpha)
+
+        high_res_path = img_path.replace(".png", "_HDR.png")
+        upscaled_image.save(high_res_path)
+        final_high_res_paths.append(high_res_path)
+        print(f"Upscaled: {high_res_path}")
+    del upscaler
+    torch.cuda.empty_cache()
 
     if gen_normal:
-        print("Cleaning up Style Transfer model to free VRAM for Marigold...")
-        
-        torch.cuda.empty_cache()
         print("Enabling Marigold Pipe for Normal Generation...")
         from diffusers import MarigoldNormalsPipeline
 
@@ -464,8 +408,8 @@ def run(opt):
             save_path = os.path.join(opt.output_dir, out_fn)
             final_normal.save(save_path)
             print(f"Saved final blended image to {save_path}")
-            del marigold_pipe
-            torch.cuda.empty_cache()
+        del marigold_pipe
+        torch.cuda.empty_cache()
             
             
 def transfer_color(source_image,target_image,intensity):
