@@ -295,13 +295,15 @@ def run(opt):
                     print("Preserving Alpha...")
                     
                     final_alpha = np.array(original_alpha.resize(output_size,output_size), Image.LANCZOS) #resize alpha
-                    final_im_rgba = cv2.merge([
+                    
+                    final_im_rgba = np.dstack([
                         final_im_blended[:,:,0],
                         final_im_blended[:,:,1],
                         final_im_blended[:,:,2],
-                        np.array(final_alpha)
+                        final_alpha
                     ])
                     cv2.imwrite(save_path, cv2.cvtColor(final_im_rgba, cv2.COLOR_RGBA2BGRA))
+                    print(f"Saved Tiled with Alpha: {save_path}")
 
                     #final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
                     # final_im_blended is RGB numpy array
