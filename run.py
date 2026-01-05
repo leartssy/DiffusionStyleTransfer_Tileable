@@ -331,7 +331,7 @@ def run(opt):
     #load upscaler once
     upscaler = StableDiffusionUpscalePipeline.from_pretrained(
             "stabilityai/stable-diffusion-x4-upscaler", 
-            revision="fp16", 
+            variant="fp16", 
             torch_dtype=torch.float16
         ).to(opt.device)
     for img_path in newly_generated_paths:
