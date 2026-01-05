@@ -373,9 +373,32 @@ def run(opt):
         # reattach alpha
         with Image.open(img_path).convert("RGBA") as original_rgba:
             alpha = original_rgba.split()[-1]
-            # Match alpha to the final target size
-            upscaled_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
-            upscaled_image.putalpha(upscaled_alpha)
+            # Check if alpha is actually used (not just solid white)
+            if alpha.getextrema() != (255, 255):
+                print("   > Refining Alpha channel to match RGB sharpness...", flush=True)
+                
+                # Convert Alpha to RGB so the AI can process it
+                alpha_rgb = Image.merge("RGB", (alpha, alpha, alpha))
+                
+                # Run the Alpha through the same Tiled Upscaler logic
+                # (You can reuse your 'upscale_pass' loop here or a simplified version)
+                alpha_inputs = processor(alpha_rgb, return_tensors="pt").to(opt.device)
+                with torch.no_grad():
+                    alpha_outputs = upscaler(**alpha_inputs)
+                
+                # Convert back and extract the first channel as our new Alpha
+                a_out = alpha_outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+                a_out = np.moveaxis(a_out, 0, -1)
+                refined_alpha_img = Image.fromarray((a_out * 255).astype(np.uint8))
+                
+                # Final resize to match the target (handles the 2080px vs 2048px issue)
+                refined_alpha = refined_alpha_img.convert("L").resize((target_w, target_h), resample=Image.LANCZOS)
+                
+                # Apply the sharpened alpha
+                upscaled_image.putalpha(refined_alpha)
+            else:
+                # If solid, just create a solid high-res alpha
+                upscaled_image.putalpha(Image.new("L", (target_w, target_h), 255))
 
         high_res_path = str(img_path)#.replace(".png", "_raw.png")
         final_high_res_paths.append(high_res_path)
