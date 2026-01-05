@@ -232,8 +232,17 @@ def run(opt):
             generated_image_pil = generated_images_list[0]
             torch.cuda.empty_cache()
             #preserve alpha
-            with Image.open(content_file) as temp_img:
-                original_alpha = temp_img.split()[-1] if temp_img.mode == 'RGBA' else None
+            content_path_str = str(content_file)
+            original_alpha = None
+            try:
+                with Image.open(content_path_str).convert("RGBA") as temp_img:
+                    alpha_channel = temp_img.split()[-1]
+                    if alpha_channel.getextrema() != (255,255):
+                        print(f"[SUCCESS] Alpha detected for {content_file.name}")
+                    else:
+                        print(f"[INFO] {content_file.name} is fully opaque")
+            except Exception as e:
+                print(f"[ERROR] Could not read alpha from {content_file.name}: {e}")
 
             content_fn_base = os.path.splitext(os.path.basename(content_file))[0]
             style_fn_base = os.path.splitext(os.path.basename(style_file))[0]
