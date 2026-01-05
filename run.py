@@ -402,8 +402,10 @@ def run(opt):
             img_path = Path(img_path_str)
             input_img = Image.open(img_path).convert("RGB")
 
-            final_normal = generate_normal(input_img, marigold_pipe,strength)
-
+            #AI normals
+            # final_normal = generate_normal(input_img, marigold_pipe,strength)
+            #sobel normals
+            final_normal = generate_sobel_normal(input_img, strength)
             if is_tileable: #Also get rid of newly created seams in normal map
                 print("Blending Normal Seams...")
                 #integrate seam blending
@@ -581,6 +583,32 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     #convert to PIL image
     final_im = Image.fromarray(image_uint8)
     return final_im
+
+def generate_sobel_normal(image, strength=2.0):
+    # 1. Convert to grayscale and blur slightly to reduce noise
+    gray = np.array(image.convert("L")).astype(np.float32)
+    gray = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    # 2. Calculate Gradients (Sobel)
+    # ksize=3 or 5 is standard for textures
+    dx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
+    dy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+
+    # 3. Construct the Normal Map
+    # We invert dy because image coordinates (top-down) are opposite to OpenGL normals
+    x = -dx * strength
+    y = -dy * strength
+    z = np.ones_like(gray) * 255.0
+
+    # 4. Normalize the vectors
+    norm = np.sqrt(x**2 + y**2 + z**2)
+    x, y, z = x/norm, y/norm, z/norm
+
+    # 5. Map from [-1, 1] to [0, 255]
+    res = np.stack([x, y, z], axis=-1)
+    res = ((res + 1.0) * 127.5).clip(0, 255).astype(np.uint8)
+    
+    return Image.fromarray(res)
 
 def upscale_image_ai(image_pil, prompt, device="cuda"):
     """Use Real-ESRGAN to upscale the image with sharp details."""
