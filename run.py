@@ -341,9 +341,9 @@ def run(opt):
     for img_path_str in newly_generated_paths:
         img_path = Path(img_path_str)   
         print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
-        image = Image.open(img_path).convert("RGB")
+        current_image = Image.open(img_path).convert("RGB")
         #option to keep aspect ratio
-        orig_w, orig_h = image.size
+        orig_w, orig_h = current_image.size
         if opt.keep_aspect_ratio:
                 # Scale the largest dimension to out_size
                 if orig_w >= orig_h:
@@ -354,31 +354,39 @@ def run(opt):
                     target_w = int(orig_w * (opt.out_size / orig_h))
         else:
                 target_w, target_h = opt.out_size, opt.out_size
-        # Prepare input
-        inputs = processor(image, return_tensors="pt").to(opt.device)
+        #recursive upscaling
+        upscale_count = 0
+        while current_image.size[0] < target_w or current_image.size[1] < target_h:
+            upscale_count += 1
+            print(f"   > AI Upscale Pass #{upscale_count} (Current: {current_image.size[0]}px)...", flush=True)
         
-        # Inference
-        with torch.no_grad():
-            outputs = upscaler(**inputs)
+            # Prepare input
+            inputs = processor(current_image, return_tensors="pt").to(opt.device)
+            
+            # Inference
+            with torch.no_grad():
+                outputs = upscaler(**inputs)
         
-        # Post-process
-        output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
-        output_tensor = np.moveaxis(output_tensor, 0, -1)
-        upscaled_image = Image.fromarray((output_tensor * 255).astype(np.uint8))
+            # Post-process
+            output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+            output_tensor = np.moveaxis(output_tensor, 0, -1)
+            current_image = Image.fromarray((output_tensor * 255).astype(np.uint8))
+            #safety break
+            if upscale_count >=3:break
         # scale to desired size
         # Swin2SR always outputs 4x. We resize its output to the user's specific target.
-        if upscaled_image.size != (target_w, target_h):
+        if current_image.size != (target_w, target_h):
             print(f"   > Adjusting size to {target_w}x{target_h}...")
-            upscaled_image = upscaled_image.resize((target_w, target_h), resample=Image.LANCZOS)
+            current_image = current_image.resize((target_w, target_h), resample=Image.LANCZOS)
         # reattach alpha
         with Image.open(img_path).convert("RGBA") as original_rgba:
             alpha = original_rgba.split()[-1]
             # Match alpha to the final target size
             upscaled_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
-            upscaled_image.putalpha(upscaled_alpha)
+            current_image.putalpha(upscaled_alpha)
 
         high_res_path = str(img_path).replace(".png", "_HDR.png")
-        upscaled_image.save(high_res_path)
+        current_image.save(high_res_path)
         final_high_res_paths.append(high_res_path)
         print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
     # Cleanup
