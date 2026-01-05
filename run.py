@@ -283,18 +283,12 @@ def run(opt):
                 #apply alpha
                 if original_alpha is not None:
                     final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
-                    final_im_rgba = cv2.merge([
-                        final_im_blended[:,:,0],
-                        final_im_blended[:,:,1],
-                        final_im_blended[:,:,2],
-                        np.array(final_alpha)
-                    ])
+                    final_im_blended = Image.fromarray(final_im_blended) #convert to PIL
+                    final_output = Image.merge("RGBA", (*final_im_blended.split(), final_alpha))
                     #save with alpha using PIL
-                    final_output_pil = Image.fromarray(final_im_rgba)
-                    final_output_pil.save(save_path, "PNG", optimize=False)
+                    final_output.save(save_path, "PNG")
                     
                     
-                
                 else:
                     #covnert rgb numpy back to bgr for opencv saving
                     cv2.imwrite(save_path, cv2.cvtColor(final_im_blended, cv2.COLOR_RGB2BGR))
@@ -315,15 +309,10 @@ def run(opt):
                 #apply alpha
                 if original_alpha is not None:
                     final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
-                    final_im_rgba = cv2.merge([
-                        generated_image_pil[:,:,0],
-                        generated_image_pil[:,:,1],
-                        generated_image_pil[:,:,2],
-                        np.array(final_alpha)
-                    ])
+                    final_im_blended = Image.fromarray(final_im_blended) #convert to PIL
+                    final_output = Image.merge("RGBA", (*final_im_blended.split(), final_alpha))
                     #save with alpha using PIL
-                    final_output_pil = Image.fromarray(final_im_rgba)
-                    final_output_pil.save(save_path, "PNG", optimize=False)
+                    final_output.save(save_path, "PNG")
                 else:
                     #generated_image_pil.save(save_path) # Use PIL's save method for the raw image
                     cv2.imwrite(save_path, cv2.cvtColor(generated_image_pil, cv2.COLOR_RGB2BGR))
