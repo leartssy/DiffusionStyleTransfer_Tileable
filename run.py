@@ -322,7 +322,7 @@ def run(opt):
                 #apply alpha
                 if original_alpha is not None:
                     print("Preserving Alpha...")
-                    final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS) #resize alpha to match output res
+                    final_alpha = original_alpha.resize((output_size, output_size), Image.LANCZOS).convert("L") #resize alpha to match output res + in 8 bit mode
                     # final_im_blended is RGB numpy array
                     res_rgb_pil = Image.fromarray(generated_image).convert("RGB")
                     final_output_pil = Image.merge("RGBA", (*res_rgb_pil.split(), final_alpha))
