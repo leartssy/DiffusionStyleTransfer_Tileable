@@ -355,31 +355,59 @@ def run(opt):
         else:
                 target_w, target_h = opt.out_size, opt.out_size
         #recursive upscaling
-        upscale_count = 0
+        upscale_pass = 0
         while current_image.size[0] < target_w or current_image.size[1] < target_h:
-            upscale_count += 1
-            print(f"   > AI Upscale Pass #{upscale_count} (Current: {current_image.size[0]}px)...", flush=True)
-        
-            # Prepare input
-            inputs = processor(current_image, return_tensors="pt").to(opt.device)
-            
-            # Inference
-            with torch.no_grad():
-                outputs = upscaler(**inputs)
-        
-            # Post-process
-            output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
-            output_tensor = np.moveaxis(output_tensor, 0, -1)
-            current_image = Image.fromarray((output_tensor * 255).astype(np.uint8))
-            #back to expected image size
-            # This prevents the 2080px (padded) vs 2048px (intended) drift
-            expected_w = orig_w * (4 ** upscale_count)
-            expected_h = orig_h * (4 ** upscale_count)
-            if current_image.size[0] > expected_w or current_image.size[1] > expected_h:
+                upscale_pass += 1
+                print(f"   > AI Upscale Pass #{upscale_pass} (Tiled for VRAM safety)...", flush=True)
+                
+                # --- TILING LOGIC ---
+                w, h = current_image.size
+                mid_w, mid_h = w // 2, h // 2
+                
+                # Define 4 tiles: (left, top, right, bottom)
+                # We add a small 16px overlap to prevent visible seams
+                overlap = 16 
+                tiles = [
+                    (0, 0, mid_w + overlap, mid_h + overlap),         # Top-Left
+                    (mid_w - overlap, 0, w, mid_h + overlap),         # Top-Right
+                    (0, mid_h - overlap, mid_w + overlap, h),         # Bottom-Left
+                    (mid_w - overlap, mid_h - overlap, w, h)          # Bottom-Right
+                ]
+                
+                upscaled_tiles = []
+                for i, tile_coords in enumerate(tiles):
+                    tile = current_image.crop(tile_coords)
+                    inputs = processor(tile, return_tensors="pt").to(opt.device)
+                    
+                    with torch.no_grad():
+                        outputs = upscaler(**inputs)
+                    
+                    # Convert tile back to PIL
+                    out_t = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+                    out_t = np.moveaxis(out_t, 0, -1)
+                    upscaled_tiles.append(Image.fromarray((out_t * 255).astype(np.uint8)))
+                    torch.cuda.empty_cache() # Clear VRAM after every tile
+
+                # --- STITCHING LOGIC ---
+                # Create a new blank canvas for the 4x result
+                new_w, new_h = w * 4, h * 4
+                stitched_image = Image.new("RGB", (new_w, new_h))
+                
+                # Paste tiles (calculating precise positions to hide the overlap)
+                stitched_image.paste(upscaled_tiles[0], (0, 0))
+                stitched_image.paste(upscaled_tiles[1], (new_w - upscaled_tiles[1].size[0], 0))
+                stitched_image.paste(upscaled_tiles[2], (0, new_h - upscaled_tiles[2].size[1]))
+                stitched_image.paste(upscaled_tiles[3], (new_w - upscaled_tiles[3].size[0], new_h - upscaled_tiles[3].size[1]))
+                
+                current_image = stitched_image
+                
+                # Force exact math to prevent the 2080px drift
+                expected_w = orig_w * (4 ** upscale_pass)
+                expected_h = orig_h * (4 ** upscale_pass)
+                if current_image.size[0] > expected_w or current_image.size[1] > expected_h:
                     current_image = current_image.resize((expected_w, expected_h), resample=Image.LANCZOS)
-            
-            #safety break
-            if upscale_count >=3:break
+
+                if upscale_pass >= 2: break # Safety: 512 -> 2048 -> 8192 is plenty
         # scale to desired size
         # Swin2SR always outputs 4x. We resize its output to the user's specific target.
         if current_image.size != (target_w, target_h):
