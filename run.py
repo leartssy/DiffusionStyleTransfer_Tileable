@@ -294,7 +294,7 @@ def run(opt):
                 if original_alpha is not None:
                     print("Preserving Alpha...")
                     
-                    final_alpha = np.array(original_alpha.resize(output_size,output_size), Image.LANCZOS) #resize alpha
+                    final_alpha = np.array(original_alpha.resize((output_size,output_size), Image.LANCZOS)) #resize alpha
                     
                     final_im_rgba = np.dstack([
                         final_im_blended[:,:,0],
