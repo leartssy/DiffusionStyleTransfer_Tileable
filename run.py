@@ -299,10 +299,26 @@ def run(opt):
                 else:
                     target_dims = (opt.out_size, opt.out_size)
 
-                if target_dims != (final_im_blended.shape[1],final_im_blended.shape[0]):
-                    print(f"Upscaling to {output_size}px...")
-                    final_im_blended = cv2.resize(final_im_blended, target_dims,interpolation=cv2.INTER_LANCZOS4)
-                
+                #normal blurry upscale
+                #if target_dims != (final_im_blended.shape[1],final_im_blended.shape[0]):
+                    #print(f"Upscaling to {output_size}px...")
+                    #final_im_blended = cv2.resize(final_im_blended, target_dims,interpolation=cv2.INTER_LANCZOS4)
+                #ai upscale
+
+                if target_dims[0] > final_im_blended.shape[1]:
+                    print("Cleaning up BLIP-Diffusion to free VRAM for Upscaler...")
+                    del blip_diffusion_pipe
+                    del pnp
+                    if 'model' in locals(): del model # Cleanup Preprocess model
+                    torch.cuda.empty_cache()
+                    print(f"AI Upscaling to {target_dims}...")
+                    # Convert numpy back to PIL for the upscaler
+                    temp_pil = Image.fromarray(final_im_blended)
+                    upscaled_pil = upscale_image_ai(temp_pil, opt.inversion_prompt, opt.device)
+                    # Final fit to exact target_dims
+                    upscaled_pil = upscaled_pil.resize(target_dims, Image.LANCZOS)
+                    final_im_blended = np.array(upscaled_pil.convert('RGB'))
+
                 #Save the blended image
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_tiled.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
@@ -355,9 +371,19 @@ def run(opt):
                 else:
                     target_dims = (opt.out_size, opt.out_size)
 
-                if target_dims != (generated_image_np.shape[1],generated_image_np.shape[0]):
-                    print(f"Upscaling to {output_size}px...")
-                    generated_image = cv2.resize(generated_image_np, target_dims,interpolation=cv2.INTER_LANCZOS4)
+                if target_dims[0] > generated_image_np.shape[1]:
+                    print("Cleaning up BLIP-Diffusion to free VRAM for Upscaler...")
+                    del blip_diffusion_pipe
+                    del pnp
+                    if 'model' in locals(): del model # Cleanup Preprocess model
+                    torch.cuda.empty_cache()
+                    print(f"AI Upscaling to {target_dims}...")
+                    upscaled_pil = upscale_image_ai(generated_image_pil, opt.inversion_prompt, opt.device)
+                    # Final fit
+                    generated_image_pil = upscaled_pil.resize(target_dims, Image.LANCZOS)
+                    generated_image = np.array(generated_image_pil.convert('RGB'))
+                else:
+                    generated_image = generated_image_np
 
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
@@ -387,8 +413,7 @@ def run(opt):
 
     if gen_normal:
         print("Cleaning up Style Transfer model to free VRAM for Marigold...")
-        del blip_diffusion_pipe
-        del pnp
+        
         torch.cuda.empty_cache()
         print("Enabling Marigold Pipe for Normal Generation...")
         from diffusers import MarigoldNormalsPipeline
@@ -439,6 +464,8 @@ def run(opt):
             save_path = os.path.join(opt.output_dir, out_fn)
             final_normal.save(save_path)
             print(f"Saved final blended image to {save_path}")
+            del marigold_pipe
+            torch.cuda.empty_cache()
             
             
 def transfer_color(source_image,target_image,intensity):
@@ -583,6 +610,39 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
     #convert to PIL image
     final_im = Image.fromarray(image_uint8)
     return final_im
+
+def upscale_image_ai(image_pil, prompt, device="cuda"):
+    """Use Real-ESRGAN to upscale the image with sharp details."""
+    from diffusers import StableDiffusionUpscalePipeline
+    import torch
+
+    # Handle Alpha Channel
+    original_rgba = image_pil.convert("RGBA")
+    alpha = original_rgba.split()[-1]
+    image_rgb = image_pil.convert("RGB")
+    
+    model_id = "stabilityai/stable-diffusion-x4-upscaler"
+    upscaler = StableDiffusionUpscalePipeline.from_pretrained(
+        model_id, revision="fp16", torch_dtype=torch.float16
+    ).to(device)
+    
+    upscaled_image = upscaler(
+        prompt=prompt,
+        image=image_pil,
+        guidance_scale=7.5,
+        num_inference_steps=20
+    ).images[0]
+
+    # Restore Alpha
+    # Resize original alpha to match new high-res dimensions
+    upscaled_alpha = alpha.resize(upscaled_image.size, resample=Image.LANCZOS)
+    upscaled_image = Image.merge("RGBA", (*upscaled_image.split(), upscaled_alpha))
+
+    # Clean up immediately
+    del upscaler
+    torch.cuda.empty_cache()
+
+    return upscaled_image
 
 def get_file_list(path_input):
     #if input is single file, use single file, if path, use folder
