@@ -323,39 +323,43 @@ def run(opt):
     print(f"\n[CLEANUP]Cleanup for upscaling...")
     del blip_diffusion_pipe
     del pnp
-    del model
     torch.cuda.empty_cache()
     final_high_res_paths = []
     print(f"\n[STEP 2] AI Upscaling {len(newly_generated_paths)} images...")
-    from diffusers import StableDiffusionUpscalePipeline
+    from transformers import Swin2SRImageProcessor, Swin2SRForImageSuperResolution
     #load upscaler once
-    upscaler = StableDiffusionUpscalePipeline.from_pretrained(
-            "stabilityai/stable-diffusion-x4-upscaler", 
-            variant="fp16", 
-            torch_dtype=torch.float16
-        ).to(opt.device)
+    model_id = "caidas/swin2sr-classical-sr-x4-64"
+    processor = Swin2SRImageProcessor.from_pretrained(model_id)
+    upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device)
+    
     for img_path in newly_generated_paths:
-        temp_pil = Image.open(img_path)
-        # Handle Alpha during upscale
-        original_rgba = temp_pil.convert("RGBA")
-        alpha = original_rgba.split()[-1]
-        
-        upscaled_image = upscaler(
-            prompt=opt.inversion_prompt,
-            image=temp_pil.convert("RGB"),
-            guidance_scale=7.5,
-            num_inference_steps=20
-        ).images[0]
+        print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
+        image = Image.open(img_path).convert("RGB")
 
-        # Re-attach Alpha
+        # Prepare input
+        inputs = processor(image, return_tensors="pt").to(opt.device)
+        
+        # Inference
+        with torch.no_grad():
+            outputs = upscaler(**inputs)
+        
+        # Post-process
+        output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+        output_tensor = np.moveaxis(output_tensor, 0, -1)
+        upscaled_image = Image.fromarray((output_tensor * 255).astype(np.uint8))
+
+        # Re-attach Alpha (Swin2SR only does RGB)
+        original_rgba = Image.open(img_path).convert("RGBA")
+        alpha = original_rgba.split()[-1]
         upscaled_alpha = alpha.resize(upscaled_image.size, resample=Image.LANCZOS)
         upscaled_image.putalpha(upscaled_alpha)
 
         high_res_path = img_path.replace(".png", "_HDR.png")
         upscaled_image.save(high_res_path)
         final_high_res_paths.append(high_res_path)
-        print(f"Upscaled: {high_res_path}")
-    del upscaler
+
+    # Cleanup
+    del upscaler, processor
     torch.cuda.empty_cache()
 
     if gen_normal:
