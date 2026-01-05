@@ -238,6 +238,7 @@ def run(opt):
                 with Image.open(content_path_str).convert("RGBA") as temp_img:
                     alpha_channel = temp_img.split()[-1]
                     if alpha_channel.getextrema() != (255,255):
+                        original_alpha = temp_img.split()[-1].copy()
                         print(f"[SUCCESS] Alpha detected for {content_file.name}")
                     else:
                         print(f"[INFO] {content_file.name} is fully opaque")
