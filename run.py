@@ -299,7 +299,7 @@ def run(opt):
                 else:
                     target_dims = (opt.out_size, opt.out_size)
 
-                if target_dims != (generated_image_np.shape[1],final_im_blended.shape[0]):
+                if target_dims != (final_im_blended.shape[1],final_im_blended.shape[0]):
                     print(f"Upscaling to {output_size}px...")
                     final_im_blended = cv2.resize(final_im_blended, target_dims,interpolation=cv2.INTER_LANCZOS4)
                 
