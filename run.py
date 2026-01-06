@@ -423,18 +423,36 @@ def run(opt):
                 alpha_rgb = Image.merge("RGB", (alpha, alpha, alpha))
                 
                 # Run the Alpha through the same Tiled Upscaler logic
-                # (You can reuse your 'upscale_pass' loop here or a simplified version)
-                alpha_inputs = processor(alpha_rgb, return_tensors="pt").to(opt.device)
-                with torch.no_grad():
-                    alpha_outputs = upscaler(**alpha_inputs)
+                # also recursive upscaling
+                curr_aw, curr_ah = alpha_rgb.size
+                grid_size = 4
+                tile_w, tile_h = curr_aw // grid_size, curr_ah // grid_size
+
+                #create blank canvas for upscaling
+                stitched_alpha = Image.new("RGB", (curr_aw *4, curr_ah *4))
+
+                for row in range(grid_size):
+                    for col in range(grid_size):
+                        left = max(0, col * tile_w - overlap)
+                        top = max(0, row * tile_h - overlap)
+                        right = min(curr_aw, (col + 1) * tile_w + overlap)
+                        bottom = min(curr_ah, (row + 1) * tile_h + overlap)
+
+                        a_tile = alpha_rgb.crop((left,top,right,bottom))
+                        
+                        alpha_inputs = processor(a_tile, return_tensors="pt").to(opt.device)
+                        with torch.no_grad():
+                            alpha_outputs = upscaler(**alpha_inputs)
                 
-                # Convert back and extract the first channel as our new Alpha
-                a_out = alpha_outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
-                a_out = np.moveaxis(a_out, 0, -1)
-                refined_alpha_img = Image.fromarray((a_out * 255).astype(np.uint8))
+                        # Convert back and extract the first channel as our new Alpha
+                        a_out = alpha_outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+                        a_out = np.moveaxis(a_out, 0, -1)
+                        upscaled_a_tile = Image.fromarray((a_out * 255).astype(np.uint8))
+
+                        stitched_alpha.paste(upscaled_a_tile, (col *tile_w *4, row * tile_h*4))
                 
                 # Final resize to match the target (handles the 2080px vs 2048px issue)
-                refined_alpha = refined_alpha_img.convert("L").resize((target_w, target_h), resample=Image.LANCZOS)
+                refined_alpha = stitched_alpha.convert("L").resize((target_w, target_h), resample=Image.LANCZOS)
                 
                 # Apply the sharpened alpha
                 upscaled_image.putalpha(refined_alpha)
