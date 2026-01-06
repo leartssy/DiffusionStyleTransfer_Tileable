@@ -363,10 +363,10 @@ def run(opt):
             curr_w, curr_h = image.size
             print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
-            #split into 4x4 grid =16
-            new_w, new_h = curr_w * 4, curr_h * 4
+            #split into 2x2 grid =4
+            new_w, new_h = curr_w * 2, curr_h * 2
             stitched = Image.new("RGB", (new_w, new_h))
-            grid_size = 4
+            grid_size = 2
             tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
             overlap = 16
 
@@ -403,13 +403,13 @@ def run(opt):
                     # Crop the upscaled tile to remove the overlap before pasting
                     # (Multiply overlap by 4 because the tile is now 4x larger)
                     clean_upscaled_tile = upscaled_tile.crop((
-                        inner_left * 4, 
-                        inner_top * 4, 
-                        upscaled_tile.size[0] - (overlap * 4 if col < grid_size - 1 else 0),
-                        upscaled_tile.size[1] - (overlap * 4 if row < grid_size - 1 else 0)
+                        inner_left * 2, 
+                        inner_top * 2, 
+                        upscaled_tile.size[0] - (overlap * 2 if col < grid_size - 1 else 0),
+                        upscaled_tile.size[1] - (overlap * 2 if row < grid_size - 1 else 0)
                     ))
-                    paste_x = col * tile_w * 4
-                    paste_y = row * tile_h * 4
+                    paste_x = col * tile_w * 2
+                    paste_y = row * tile_h * 2
                     #to hide seams only paste the non overlap center of tile, except for outer tiles
 
                     stitched.paste(clean_upscaled_tile, (paste_x, paste_y))
@@ -420,6 +420,8 @@ def run(opt):
                     torch.cuda.empty_cache()
             
             image = stitched
+            if image.size[0] >= target_w and image.size[1] >= target_h:
+                break
             if upscale_pass >= 2: break
         
         # scale to desired size
@@ -509,8 +511,8 @@ def run(opt):
             save_path = os.path.join(opt.output_dir, out_fn)
             final_normal.save(save_path)
             print(f"Saved final blended image to {save_path}")
-        del marigold_pipe
-        torch.cuda.empty_cache()
+        #del marigold_pipe
+        #torch.cuda.empty_cache()
             
             
 def transfer_color(source_image,target_image,intensity):
