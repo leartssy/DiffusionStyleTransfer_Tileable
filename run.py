@@ -368,9 +368,17 @@ def run(opt):
         
         
         upscale_pass = 0
+        
         #recursive upscaling with tiling
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
+            # Add a 32px mirror buffer so the AI never sees a 'hard edge'
+            pad = 32 
+            img_np = np.array(image)
+            padded_np = np.pad(img_np, ((pad, pad), (pad, pad), (0, 0)), mode='edge')
+            # Note: Actually, for best results, use 'reflect' padding if using cv2, 
+            # but for PIL, expanding by copying the edge is easiest:
+            image = Image.fromarray(padded_np)
             curr_w, curr_h = image.size
             print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
@@ -430,13 +438,22 @@ def run(opt):
                     #to hide seams only paste the non overlap center of tile, except for outer tiles
 
                     stitched.paste(clean_upscaled_tile, (paste_x, paste_y))
-        
+                    
 
                     #clean VRAM after every tile
                     del outputs, output_tensor
                     torch.cuda.empty_cache()
-            
-            image = stitched
+            # The pad also got upscaled by the scale_factor (4x)
+            final_pad = pad * scale_factor
+
+            # Crop the 'stitched' image to remove the buffer edges
+            image = stitched.crop((
+                final_pad, 
+                final_pad, 
+                stitched.width - final_pad, 
+                stitched.height - final_pad
+            ))
+
             if image.size[0] >= target_w and image.size[1] >= target_h:
                 break
             if upscale_pass >= 2: break
