@@ -342,24 +342,26 @@ def run(opt):
         img_path = Path(img_path_str)   
         print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
         image = Image.open(img_path).convert("RGB")
+        #option to keep aspect ratio
+        orig_w, orig_h = image.size
+        if opt.keep_aspect_ratio:
+                # Scale the largest dimension to out_size
+                if orig_w >= orig_h:
+                    target_w = opt.out_size
+                    target_h = int(orig_h * (opt.out_size / orig_w))
+                else:
+                    target_h = opt.out_size
+                    target_w = int(orig_w * (opt.out_size / orig_h))
+        else:
+                target_w, target_h = opt.out_size, opt.out_size
+        print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
+        
         upscale_pass = 0
         #recursive upscaling with tiling
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
            
-            #option to keep aspect ratio
-            orig_w, orig_h = image.size
-            if opt.keep_aspect_ratio:
-                    # Scale the largest dimension to out_size
-                    if orig_w >= orig_h:
-                        target_w = opt.out_size
-                        target_h = int(orig_h * (opt.out_size / orig_w))
-                    else:
-                        target_h = opt.out_size
-                        target_w = int(orig_w * (opt.out_size / orig_h))
-            else:
-                    target_w, target_h = opt.out_size, opt.out_size
-            print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
+            
             #split into 4x4 grid =16
             grid_size = 4
             tile_w, tile_h = orig_w // grid_size, orig_h // grid_size
@@ -373,8 +375,8 @@ def run(opt):
                     #define crop area with overlap
                     left = max(0, col * tile_w - overlap)
                     top = max(0,row * tile_h - overlap)
-                    right = min(w, (col + 1) * tile_w + overlap)
-                    bottom = min(h, (row + 1) * tile_h + overlap)
+                    right = min(orig_w, (col + 1) * tile_w + overlap)
+                    bottom = min(orig_h, (row + 1) * tile_h + overlap)
 
                     tile = image.crop((left,top,right,bottom))
 
@@ -405,6 +407,7 @@ def run(opt):
             if upscale_pass >= 2: break
         
         # scale to desired size
+        upscaled_image = image
         # Swin2SR always outputs 4x. We resize its output to the user's specific target.
         if upscaled_image.size != (target_w, target_h):
             print(f"   > Adjusting size to {target_w}x{target_h}...")
