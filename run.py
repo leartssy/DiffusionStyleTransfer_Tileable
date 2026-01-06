@@ -354,13 +354,13 @@ def run(opt):
                     target_w = int(orig_w * (opt.out_size / orig_h))
         else:
                 target_w, target_h = opt.out_size, opt.out_size
-        print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
+        
         
         upscale_pass = 0
         #recursive upscaling with tiling
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
-           
+            print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
             #split into 4x4 grid =16
             grid_size = 4
