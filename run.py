@@ -439,33 +439,41 @@ def run(opt):
                 alpha_rgb = Image.merge("RGB", (alpha, alpha, alpha))
                 
                 # Run the Alpha through the same Tiled Upscaler logic
-                # also recursive upscaling
-                curr_aw, curr_ah = alpha_rgb.size
-                grid_size = 4
-                tile_w, tile_h = curr_aw // grid_size, curr_ah // grid_size
+                for a_pass in range(upscale_pass):
+                    # also recursive upscaling
+                    curr_aw, curr_ah = alpha_rgb.size
+                    grid_size = 4
+                    a_tile_w, a_tile_h = curr_aw // grid_size, curr_ah // grid_size
 
-                #create blank canvas for upscaling
-                stitched_alpha = Image.new("RGB", (curr_aw *4, curr_ah *4))
+                    #create blank canvas for upscaling
+                    stitched_alpha = Image.new("RGB", (curr_aw *4, curr_ah *4))
 
-                for row in range(grid_size):
-                    for col in range(grid_size):
-                        left = max(0, col * tile_w - overlap)
-                        top = max(0, row * tile_h - overlap)
-                        right = min(curr_aw, (col + 1) * tile_w + overlap)
-                        bottom = min(curr_ah, (row + 1) * tile_h + overlap)
+                    for row in range(grid_size):
+                        for col in range(grid_size):
+                            left = max(0, col * tile_w - overlap)
+                            top = max(0, row * tile_h - overlap)
+                            right = min(curr_aw, (col + 1) * tile_w + overlap)
+                            bottom = min(curr_ah, (row + 1) * tile_h + overlap)
 
-                        a_tile = alpha_rgb.crop((left,top,right,bottom))
-                        
-                        alpha_inputs = processor(a_tile, return_tensors="pt").to(opt.device)
-                        with torch.no_grad():
-                            alpha_outputs = upscaler(**alpha_inputs)
-                
-                        # Convert back and extract the first channel as our new Alpha
-                        a_out = alpha_outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
-                        a_out = np.moveaxis(a_out, 0, -1)
-                        upscaled_a_tile = Image.fromarray((a_out * 255).astype(np.uint8))
+                            a_tile = alpha_rgb.crop((left,top,right,bottom))
+                            
+                            alpha_inputs = processor(a_tile, return_tensors="pt").to(opt.device)
+                            with torch.no_grad():
+                                alpha_outputs = upscaler(**alpha_inputs)
+                    
+                            # Convert back and extract the first channel as our new Alpha
+                            a_out = alpha_outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+                            a_out = np.moveaxis(a_out, 0, -1)
+                            upscaled_a_tile = Image.fromarray((a_out * 255).astype(np.uint8))
 
-                        stitched_alpha.paste(upscaled_a_tile, (col *tile_w *4, row * tile_h*4))
+                            # Same pad/paste math
+                            pad_l = (col * a_tile_w - left) * 4
+                            pad_t = (row * a_tile_h - top) * 4
+                            t_w = (min(curr_aw, (col + 1) * a_tile_w) - (col * a_tile_w)) * 4
+                            t_h = (min(curr_ah, (row + 1) * a_tile_h) - (row * a_tile_h)) * 4
+
+                            clean_a = upscaled_a_tile.crop((int(pad_l), int(pad_t), int(pad_l + t_w), int(pad_t + t_h)))
+                            stitched_alpha.paste(clean_a, (int(col * a_tile_w * 4), int(row * a_tile_h * 4)))
                 
                 # Final resize to match the target (handles the 2080px vs 2048px issue)
                 refined_alpha = stitched_alpha.convert("L").resize((target_w, target_h), resample=Image.LANCZOS)
