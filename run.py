@@ -322,13 +322,15 @@ def run(opt):
     
     print(f"\n[CLEANUP]Cleanup for upscaling...")
     #clean up
-    if 'blip_diffusion_pipe' in locals(): del blip_diffusion_pipe
-    if 'pnp' in locals(): del pnp
+    # Before loading Swin2SR
+    del blip_diffusion_pipe
+    del pnp
     if 'model' in locals(): del model
-    
+
     import gc
     gc.collect()
     torch.cuda.empty_cache()
+    torch.cuda.ipc_collect() # Extra cleaning
     final_high_res_paths = []
 
     print(f"\n[STEP 2] AI Upscaling {len(newly_generated_paths)} images...")
@@ -336,7 +338,7 @@ def run(opt):
     #load upscaler once
     model_id = "caidas/swin2sr-classical-sr-x4-64"
     processor = Swin2SRImageProcessor.from_pretrained(model_id)
-    upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device)
+    upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device).half()
     
     for img_path_str in newly_generated_paths:
         img_path = Path(img_path_str)   
@@ -361,8 +363,12 @@ def run(opt):
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
             curr_w, curr_h = image.size
-            print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
+            print(f"Upscale Pass {upscale_pass} (Using 4-tile grid)")
             
+            # Check if we actually need another 4x pass
+            # If we are already close to the target, we don't want a massive jump
+            if curr_w >= target_w and curr_h >= target_h:
+                break
             #split into 2x2 grid =4
             scale_factor = 4
             new_w, new_h = curr_w * scale_factor, curr_h * scale_factor
@@ -383,7 +389,7 @@ def run(opt):
                     tile = image.crop((left,top,right,bottom))
 
                     # Prepare input
-                    inputs = processor(tile, return_tensors="pt").to(opt.device)
+                    inputs = processor(tile, return_tensors="pt").to(opt.device).to(torch.float16)
                     
                     # Inference
                     with torch.no_grad():
