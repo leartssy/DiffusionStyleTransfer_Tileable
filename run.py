@@ -360,11 +360,14 @@ def run(opt):
         #recursive upscaling with tiling
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
+            curr_w, curr_h = image.size
             print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
             #split into 4x4 grid =16
+            new_w, new_h = curr_w * 4, curr_h * 4
+            stitched = Image.new("RGB", (new_w, new_h))
             grid_size = 4
-            tile_w, tile_h = orig_w // grid_size, orig_h // grid_size
+            tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
             overlap = 16
 
             new_w, new_h = orig_w*4, orig_h*4
@@ -375,8 +378,8 @@ def run(opt):
                     #define crop area with overlap
                     left = max(0, col * tile_w - overlap)
                     top = max(0,row * tile_h - overlap)
-                    right = min(orig_w, (col + 1) * tile_w + overlap)
-                    bottom = min(orig_h, (row + 1) * tile_h + overlap)
+                    right = min(curr_w, (col + 1) * tile_w + overlap)
+                    bottom = min(curr_h, (row + 1) * tile_h + overlap)
 
                     tile = image.crop((left,top,right,bottom))
 
@@ -392,12 +395,27 @@ def run(opt):
                     output_tensor = np.moveaxis(output_tensor, 0, -1)
                     upscaled_tile = Image.fromarray((output_tensor * 255).astype(np.uint8))
 
-                    #calculate the paste position
-                    paste_x = col * tile_w *4
-                    paste_y = row * tile_h * 4
+                    # Swin2SR scales everything by 4
+                    actual_crop_w = right - left
+                    actual_crop_h = bottom - top
+                    # Calculate where the "clean" (non-overlapping) part of the tile starts
+                    inner_left = overlap if col > 0 else 0
+                    inner_top = overlap if row > 0 else 0
 
+                    # Crop the upscaled tile to remove the overlap before pasting
+                    # (Multiply overlap by 4 because the tile is now 4x larger)
+                    clean_upscaled_tile = upscaled_tile.crop((
+                        inner_left * 4, 
+                        inner_top * 4, 
+                        upscaled_tile.size[0] - (overlap * 4 if col < grid_size - 1 else 0),
+                        upscaled_tile.size[1] - (overlap * 4 if row < grid_size - 1 else 0)
+                    ))
+                    paste_x = col * tile_w * 4
+                    paste_y = row * tile_h * 4
                     #to hide seams only paste the non overlap center of tile, except for outer tiles
-                    stitched.paste(upscaled_tile, (paste_x,paste_y))
+
+                    stitched.paste(clean_upscaled_tile, (paste_x, paste_y))
+        
 
                     #clean VRAM after every tile
                     del outputs, output_tensor
@@ -470,14 +488,14 @@ def run(opt):
     torch.cuda.empty_cache()
 
     if gen_normal:
-        print("Enabling Marigold Pipe for Normal Generation...")
-        from diffusers import MarigoldNormalsPipeline
+        #print("Enabling Marigold Pipe for Normal Generation...")
+        #from diffusers import MarigoldNormalsPipeline
 
-        marigold_pipe = MarigoldNormalsPipeline.from_pretrained(
-            "prs-eth/marigold-normals-v1-1",
-            variant="fp16",
-            torch_dtype=torch.float16
-        ).to("cuda")
+        #marigold_pipe = MarigoldNormalsPipeline.from_pretrained(
+            #"prs-eth/marigold-normals-v1-1",
+           # variant="fp16",
+           # torch_dtype=torch.float16
+        #).to("cuda")
 
         strength = opt.normal_strength
 
