@@ -310,10 +310,10 @@ def run(opt):
                 if color_strength < 1.0:
 
                     intensity = 1- color_strength
-                    source_image = generated_image_pil
+                    source_image = np.array(generated_image_pil.convert('RGB'))
                     print("Performing Color correction...")
                     generated_image_pil = transfer_color(source_image,content_file,intensity)
-
+                    generated_image_pil = Image.fromarray(generated_image_pil)
                 
                 #apply alpha
                 if original_alpha is not None:
