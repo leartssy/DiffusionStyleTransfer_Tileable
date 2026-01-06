@@ -363,7 +363,7 @@ def run(opt):
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
             curr_w, curr_h = image.size
-            print(f"Upscale Pass {upscale_pass} (Using 4-tile grid)")
+            print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
             # Check if we actually need another 4x pass
             # If we are already close to the target, we don't want a massive jump
@@ -373,7 +373,7 @@ def run(opt):
             scale_factor = 4
             new_w, new_h = curr_w * scale_factor, curr_h * scale_factor
             stitched = Image.new("RGB", (new_w, new_h))
-            grid_size = 2
+            grid_size = 4
             tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
             overlap = 16
 
