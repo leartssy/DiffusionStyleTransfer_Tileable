@@ -450,10 +450,10 @@ def run(opt):
 
                     for row in range(grid_size):
                         for col in range(grid_size):
-                            left = max(0, col * tile_w - overlap)
-                            top = max(0, row * tile_h - overlap)
-                            right = min(curr_aw, (col + 1) * tile_w + overlap)
-                            bottom = min(curr_ah, (row + 1) * tile_h + overlap)
+                            left = max(0, col * a_tile_w - overlap)
+                            top = max(0, row * a_tile_h - overlap)
+                            right = min(curr_aw, (col + 1) * a_tile_w + overlap)
+                            bottom = min(curr_ah, (row + 1) * a_tile_h + overlap)
 
                             a_tile = alpha_rgb.crop((left,top,right,bottom))
                             
@@ -474,7 +474,7 @@ def run(opt):
 
                             clean_a = upscaled_a_tile.crop((int(pad_l), int(pad_t), int(pad_l + t_w), int(pad_t + t_h)))
                             stitched_alpha.paste(clean_a, (int(col * a_tile_w * 4), int(row * a_tile_h * 4)))
-                
+                            alpha_rgb = stitched_alpha
                 # Final resize to match the target (handles the 2080px vs 2048px issue)
                 refined_alpha = stitched_alpha.convert("L").resize((target_w, target_h), resample=Image.LANCZOS)
                 
