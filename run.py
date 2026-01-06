@@ -370,8 +370,6 @@ def run(opt):
             tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
             overlap = 16
 
-            new_w, new_h = orig_w*4, orig_h*4
-            stitched = Image.new("RGB", (new_w, new_h))
 
             for row in range(grid_size):
                 for col in range(grid_size):
