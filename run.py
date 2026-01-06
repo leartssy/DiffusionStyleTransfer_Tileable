@@ -364,7 +364,8 @@ def run(opt):
             print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
             #split into 2x2 grid =4
-            new_w, new_h = curr_w * 2, curr_h * 2
+            scale_factor = 4
+            new_w, new_h = curr_w * scale_factor, curr_h * scale_factor
             stitched = Image.new("RGB", (new_w, new_h))
             grid_size = 2
             tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
@@ -393,23 +394,24 @@ def run(opt):
                     output_tensor = np.moveaxis(output_tensor, 0, -1)
                     upscaled_tile = Image.fromarray((output_tensor * 255).astype(np.uint8))
 
-                    # Swin2SR scales everything by 4
-                    actual_crop_w = right - left
-                    actual_crop_h = bottom - top
-                    # Calculate where the "clean" (non-overlapping) part of the tile starts
-                    inner_left = overlap if col > 0 else 0
-                    inner_top = overlap if row > 0 else 0
+                    # How many pixels of overlap exist on the left/top of this specific tile?
+                    crop_left = (col * tile_w - left) * scale_factor
+                    crop_top = (row * tile_h - top) * scale_factor
+                    
+                    # The width/height we actually want to keep
+                    keep_w = tile_w * scale_factor
+                    keep_h = tile_h * scale_factor
 
-                    # Crop the upscaled tile to remove the overlap before pasting
-                    # (Multiply overlap by 4 because the tile is now 4x larger)
                     clean_upscaled_tile = upscaled_tile.crop((
-                        inner_left * 2, 
-                        inner_top * 2, 
-                        upscaled_tile.size[0] - (overlap * 2 if col < grid_size - 1 else 0),
-                        upscaled_tile.size[1] - (overlap * 2 if row < grid_size - 1 else 0)
+                        crop_left, 
+                        crop_top, 
+                        crop_left + keep_w, 
+                        crop_top + keep_h
                     ))
-                    paste_x = col * tile_w * 2
-                    paste_y = row * tile_h * 2
+
+                    # 4. Paste into the final canvas using 4x coordinates
+                    paste_x = col * tile_w * scale_factor
+                    paste_y = row * tile_h * scale_factor
                     #to hide seams only paste the non overlap center of tile, except for outer tiles
 
                     stitched.paste(clean_upscaled_tile, (paste_x, paste_y))
