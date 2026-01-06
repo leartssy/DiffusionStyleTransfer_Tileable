@@ -461,16 +461,8 @@ def run(opt):
                 upscaled_image.putalpha(Image.new("L", (target_w, target_h), 255))
 
         high_res_path = str(img_path)#.replace(".png", "_raw.png")
-        final_high_res_paths.append(high_res_path)
-        # DELETE the low-resolution preview image
-        # check if the file exists and ensure not deleting the file just saved
-        if os.path.exists(img_path) and str(img_path) != final_high_res_paths:
-            try:
-                os.remove(img_path)
-                print(f"   > [CLEANUP] Deleted preview: {os.path.basename(img_path)}")
-            except Exception as e:
-                print(f"   > [WARNING] Could not delete preview: {e}")
         upscaled_image.save(high_res_path)
+        final_high_res_paths.append(high_res_path)
         
         print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
     # Cleanup
