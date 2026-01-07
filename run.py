@@ -711,6 +711,11 @@ def generate_sobel_normal(image, strength=2.0):
     dx = cv2.Sobel(gray_padded, cv2.CV_32F, 1, 0, ksize=3)
     dy = cv2.Sobel(gray_padded, cv2.CV_32F, 0, 1, ksize=3)
 
+    # Crop the gradients back to the original size
+    # This removes the 1px border added by copyMakeBorder
+    dx = dx[1:-1, 1:-1]
+    dy = dy[1:-1, 1:-1]
+
     # 3. Construct the Normal Map
     # We invert dy because image coordinates (top-down) are opposite to OpenGL normals
     x = -dx * strength
