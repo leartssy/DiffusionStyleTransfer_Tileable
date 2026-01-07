@@ -375,7 +375,7 @@ def run(opt):
             # Add a 32px mirror buffer so the AI never sees a 'hard edge'
             pad = 32 
             img_np = np.array(image)
-            padded_np = np.pad(img_np, ((pad, pad), (pad, pad), (0, 0)), mode='edge')
+            padded_np = np.pad(img_np, ((pad, pad), (pad, pad), (0, 0)), mode='wrap')
             # Note: Actually, for best results, use 'reflect' padding if using cv2, 
             # but for PIL, expanding by copying the edge is easiest:
             image = Image.fromarray(padded_np)
@@ -695,12 +695,21 @@ def generate_normal(image, pipe,strength=2.0,detail_boost=0.5):
 def generate_sobel_normal(image, strength=2.0):
     # 1. Convert to grayscale and blur slightly to reduce noise
     gray = np.array(image.convert("L")).astype(np.float32)
+    
+    # Use BORDER_WRAP for the blur so the edges don't get dark
+    gray = cv2.copyMakeBorder(gray, 5, 5, 5, 5, cv2.BORDER_WRAP)
     gray = cv2.GaussianBlur(gray, (5, 5), 0)
+    # Crop back to original size after blurred wrap
+    gray = gray[5:-5, 5:-5]
+
+    # 2. Calculate Gradients with Border Wrap
+    # We pad with wrap border, calculate Sobel, then crop
+    gray_padded = cv2.copyMakeBorder(gray, 1, 1, 1, 1, cv2.BORDER_WRAP)
 
     # 2. Calculate Gradients (Sobel)
     # ksize=3 or 5 is standard for textures
-    dx = cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3)
-    dy = cv2.Sobel(gray, cv2.CV_32F, 0, 1, ksize=3)
+    dx = cv2.Sobel(gray_padded, cv2.CV_32F, 1, 0, ksize=3)
+    dy = cv2.Sobel(gray_padded, cv2.CV_32F, 0, 1, ksize=3)
 
     # 3. Construct the Normal Map
     # We invert dy because image coordinates (top-down) are opposite to OpenGL normals
