@@ -55,6 +55,15 @@ def make_model_circular(unet_model):
     print(f"Circular padding explicitly enabled on {count} U-Net layers (H and W).")
     return unet_model
 
+def patch_vae_circular(vae_model):
+    """
+    Patches the VAE decoder to prevent edge seams during image reconstruction.
+    """
+    for m in vae_model.modules():
+        if isinstance(m, nn.Conv2d):
+            m.padding_mode = 'circular'
+    print("VAE patched for circular reconstruction.")
+    return vae_model
 
 def run(opt):
     
@@ -223,6 +232,7 @@ def run(opt):
     if is_tileable:
         print("Enabling circular padding for tileability...")
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
+        blip_diffusion_pipe.vae = patch_vae_circular(blip_diffusion_pipe.vae)
         pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
     
     base_res_path = []
