@@ -33,7 +33,7 @@ import textile
 import torch.nn as nn
 
 def make_model_circular(unet_model):
-   """
+    """
     Patches a U-Net to use explicit circular padding on both axes.
     """
     count = 0
