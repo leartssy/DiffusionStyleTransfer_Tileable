@@ -33,24 +33,26 @@ import textile
 import torch.nn as nn
 
 def make_model_circular(unet_model):
+   """
+    Patches a U-Net to use explicit circular padding on both axes.
     """
-    Patches a Stable Diffusion/BLIP-Diffusion U-Net to use circular padding.
-    """
-    count=0
+    count = 0
     for name, module in unet_model.named_modules():
-        # Find all 2D Convolutional layers
         if isinstance(module, nn.Conv2d):
-            # Apply only to layers that actually use padding (usually kernel_size > 1)
-            # 1x1 convolutions (kernel_size=1) typically don't need padding.
-            if isinstance(module.padding, tuple):
-                 if module.padding[0] > 0 or module.padding[1] > 0:
-                     module.padding_mode = 'circular'
-                     count +=1
-            elif isinstance(module.padding, int):
-                 if module.padding > 0:
-                     module.padding_mode = 'circular'
+            # Only patch layers with standard padding (usually 1 or 3)
+            if isinstance(module.padding, (tuple, int)):
+                pad_val = module.padding if isinstance(module.padding, int) else module.padding[0]
+                
+                if pad_val > 0:
+                    # Set the mode to circular
+                    module.padding_mode = 'circular'
+                    
+                    # Force the padding to be a tuple to ensure both (H, W) are covered
+                    # This ensures the vertical axis (index 0) is explicitly handled
+                    module.padding = (pad_val, pad_val)
+                    count += 1
 
-    print(f"Circular padding enabled on U-Net on {count} layers.")
+    print(f"Circular padding explicitly enabled on {count} U-Net layers (H and W).")
     return unet_model
 
 
