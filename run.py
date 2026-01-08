@@ -622,14 +622,14 @@ def apply_seam_blending(image,gap_px,blur,min_ratio,im_origin_size=None,maintain
     #vertical blending
     final_im = blend_seams(image,gap_px,blur, min_ratio)
     #horizontal blending: rotate 90degrees and tile again
-    final_im = np.rot90(final_im)
+    final_im = np.rot90(final_im, k=1) #k=number of times rotated
     final_im = blend_seams(final_im,gap_px,blur,min_ratio)
     #rotate back
-    final_im = cv2.rotate(final_im,cv2.ROTATE_90_CLOCKWISE)
+    final_im = np.rot90(final_im,k=-1) #counterclockwise
 
     #maintain size if wanted
     if maintain_size and im_origin_size is not None:
-        final_im = cv2.resize(final_im,im_origin_size)
+        final_im = cv2.resize(final_im,im_origin_size,interpolation=cv2.INTER_LANCZOS4)
     
     return final_im
 
