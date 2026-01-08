@@ -252,38 +252,17 @@ def run(opt):
             output_size = out_size
             
             if is_tileable:
-                print("Blending Image Seams...")
-                #integrate seam blending
-                #convert PIL image to cv2 format
-                im_np = np.array(generated_image_pil.convert('RGB'))
-                #determine gap size
-                im_h, im_w , _ = im_np.shape
-                #if gas is <1: treat as fraction of height, else as pixelwidth
-                if opt.gap <1:
-                    gap_px = int(min(im_h, im_w) * opt.gap)
-                else:
-                    gap_px = int(opt.gap)
-
-                #store original image size
-                im_origin_size = (im_w, im_h)
-                #Apply the blending
-                final_im_blended = apply_seam_blending(
-                    im_np,
-                    gap_px,
-                    opt.blurring,
-                    opt.min_ratio,
-                    im_origin_size=im_origin_size,
-                    maintain_size=opt.maintain_size
-                )
+                
                 #if color transfer off: correct the colors
                 color_strength = opt.color_strength
                 if color_strength < 1.0:
 
                     intensity = 1- color_strength
-                    source_image = final_im_blended
+                    source_image = np.array(generated_image_pil.convert('RGB'))
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
-
+                else:
+                    final_im_blended = source_image
                 #normal blurry upscale
                 #if target_dims != (final_im_blended.shape[1],final_im_blended.shape[0]):
                     #print(f"Upscaling to {output_size}px...")
@@ -483,6 +462,33 @@ def run(opt):
             else:
                 # If solid, just create a solid high-res alpha
                 upscaled_image.putalpha(Image.new("L", (target_w, target_h), 255))
+        if is_tileable:
+            print("Blending Image Seams...")
+            #integrate seam blending
+            #convert PIL image to cv2 format
+            im_np = np.array(upscaled_image.convert('RGB'))
+            #determine gap size
+            im_h, im_w , _ = im_np.shape
+            #if gas is <1: treat as fraction of height, else as pixelwidth
+            if opt.gap <1:
+                gap_px = int(min(im_h, im_w) * opt.gap)
+            else:
+                gap_px = int(opt.gap)
+
+            #store original image size
+            im_origin_size = (im_w, im_h)
+            #Apply the blending
+            final_im_blended = apply_seam_blending(
+                im_np,
+                gap_px,
+                opt.blurring,
+                opt.min_ratio,
+                im_origin_size=im_origin_size,
+                maintain_size=opt.maintain_size
+            )
+            #convert back to pil
+            final_im_blended = Image.fromarray(final_im_blended)
+            upscaled_image = final_im_blended
 
         high_res_path = str(img_path)#.replace(".png", "_raw.png")
         upscaled_image.save(high_res_path)
