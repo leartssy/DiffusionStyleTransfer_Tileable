@@ -262,6 +262,7 @@ def run(opt):
                     print("Performing Color correction...")
                     final_im_blended = transfer_color(source_image,content_file,intensity)
                 else:
+                    source_image = np.array(generated_image_pil.convert('RGB'))
                     final_im_blended = source_image
                 #normal blurry upscale
                 #if target_dims != (final_im_blended.shape[1],final_im_blended.shape[0]):
