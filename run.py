@@ -144,7 +144,9 @@ def run(opt):
                 save_path=save_path,
                 timesteps_to_save=timesteps_to_save,
                 inversion_prompt=opt.inversion_prompt,
-                extract_reverse=opt.extract_reverse
+                extract_reverse=opt.extract_reverse,
+                out_size=opt.out_size,
+                keep_aspect_ratio=opt.keep_aspect_ratio
             )
             # You might want to save the content_latents aggregated here:
             torch.save(content_latents.cpu(), aggregated_path)
@@ -855,6 +857,7 @@ if __name__ == "__main__":
     parser.add_argument('--maintain_size',type=bool, default=False,help="maintain images default size")
     parser.add_argument('--out_size',type=int, default=2048, help="Output image size")
     parser.add_argument('--keep_aspect_ratio',type=bool, default=True,help="Keep original aspect ratio of content image")
+    parser.add_argument('--out_size',type=int, default=512,help="size of default output and the image being processed")
 
     
 

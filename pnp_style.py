@@ -28,16 +28,23 @@ import textile
 from textile.utils.image_utils import read_and_process_image
 import torch.nn.functional as F
 
-def load_img1(self, image_path):
-        image_pil = Image.open(image_path).convert("RGB")
-        resize = T.Resize(512)
-        crop = T.CenterCrop(512)
-        image_pil = resize(image_pil)
-        image_pil = crop(image_pil)
-        #safety if it were a tuple
-        if isinstance(image_pil, tuple):
-            image_pil = image_pil[0]
-        return image_pil
+def load_img1(self, image_path, out_size=512, keep_aspect_ratio=True):
+    image_pil = Image.open(image_path).convert("RGB")
+    orig_w, orig_h = image_pil.size
+
+    if keep_aspect_ratio:
+        if orig_w >= orig_h:
+            target_w, target_h = out_size, int(orig_h * (out_size / orig_w))
+        else:
+            target_h, target_w = out_size, int(orig_w * (out_size / orig_h))
+    
+        target_w, target_h = (target_w // 8) * 8, (target_h // 8) * 8
+        image_pil = T.Resize((target_h, target_w), interpolation=T.InterpolationMode.LANCZOS)(image_pil)
+    else:
+        image_pil = T.Resize(out_size, interpolation=T.InterpolationMode.LANCZOS)(image_pil)
+        image_pil = T.CenterCrop(out_size)(image_pil)
+        
+    return image_pil
 
 
 class PNP(nn.Module):
@@ -73,7 +80,12 @@ class PNP(nn.Module):
         cond_subject = ""
         tgt_subject = ""
         text_prompt_input = ""
-        cond_image = load_img1(self,style_file)
+        #dynamic latent size
+        lat_h, lat_w = content_latents.shape[-2:]
+        current_height = lat_h * 8
+        current_width = lat_w * 8
+        cond_image = load_img1(self,style_file, out_size=self.config.out_size, 
+                               keep_aspect_ratio=self.config.keep_aspect_ratio)
         guidance_scale = self.config.guidance_scale #previously 7.5
         textile_guidance = self.config.textile_guidance_scale
         is_tileable = self.config.is_tileable
@@ -82,6 +94,8 @@ class PNP(nn.Module):
         negative_prompt = "over-exposure, under-exposure, saturated, duplicate, out of frame, lowres, cropped, worst quality, low quality, jpeg artifacts, morbid, mutilated, out of frame, ugly, bad anatomy, bad proportions, deformed, blurry, duplicate"
         
         init_latents = content_latents[-1].unsqueeze(0).to(self.device)
+
+        
 
         output = self.pipe(
             content_latents,
@@ -94,8 +108,8 @@ class PNP(nn.Module):
             num_inference_steps=num_inference_steps,
             neg_prompt=negative_prompt,
             latents=init_latents,
-            height=512,
-            width=512,
+            height=current_height,
+            width=current_width,
             content_step=content_step,
         ).images
 

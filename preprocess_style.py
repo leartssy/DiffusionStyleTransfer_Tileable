@@ -86,16 +86,39 @@ class Preprocess(nn.Module):
             imgs = (imgs / 2 + 0.5).clamp(0, 1)
         return imgs
 
-    def load_img(self, image_path):
+    def load_img(self, image_path, out_size=512, keep_aspect_ratio=True):
         #old:image_pil = T.Resize(512)(Image.open(image_path).convert("RGB"))
         #for security: force square size
         image_pil = Image.open(image_path).convert("RGB")
-        resize = T.Resize(512)
-        crop = T.CenterCrop(512)
-        to_tensor = T.ToTensor()
-        image_pil = resize(image_pil)
-        image_pil = crop(image_pil)
-        image = to_tensor(image_pil).unsqueeze(0).to(self.device)
+        orig_w, orig_h = image_pil.size
+        
+        #ensure that dimensions are multiples of 8 because vae needs that
+        if keep_aspect_ratio:
+            #calculate dimensions based on out_size
+            if orig_w >= orig_h:
+                target_w = out_size
+                target_h = int(orig_h * (out_size / orig_w))
+            else:
+                target_h = out_size
+                target_w = int(orig_w * (out_size / orig_h))
+            #make multiples of 8
+            target_w = (target_w // 8) * 8
+            target_h = (target_h // 8) * 8
+            #resize
+            resize = T.Resize((target_h, target_w), interpolation=T.InterpolationMode.LANCZOS)
+            image_pil = resize(image_pil)
+        else:
+            target_w, target_h = out_size, out_size
+
+            resize = T.Resize(out_size, interpolation=T.InterpolationMode.LANCZOS)
+            crop = T.CenterCrop(512)
+
+            image_pil = resize(image_pil)
+            #for cropping out the center if not already square
+            image_pil = crop(image_pil)
+
+        image = T.ToTensor()(image_pil).unsqueeze(0).to(self.device)
+        print(f"[INFO] Image loaded with resolution: {target_w}x{target_h}")
         return image
 
     @torch.no_grad()
@@ -167,13 +190,13 @@ class Preprocess(nn.Module):
 
     @torch.no_grad()
     def extract_latents(self, num_steps, data_path, save_path, timesteps_to_save,
-                        inversion_prompt='', extract_reverse=False):
+                        inversion_prompt='', extract_reverse=False, out_size=512, keep_aspect_ratio=True):
         
         print('extract_reverse', extract_reverse)  # default to False
         self.scheduler.set_timesteps(num_steps)
 
         cond = self.get_text_embeds(inversion_prompt, "")[1].unsqueeze(0)
-        image = self.load_img(data_path)
+        image = self.load_img(data_path, out_size=out_size, keep_aspect_ratio=keep_aspect_ratio)
         latent = self.encode_imgs(image)
 
         inverted_latents = self.inversion_func(cond, latent, save_path, save_latents=not extract_reverse,
