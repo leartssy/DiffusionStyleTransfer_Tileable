@@ -134,19 +134,24 @@ def register_attention_control_efficient(model, injection_schedule):
                 q = self.to_q(x)
                 k = self.to_k(x)
                 v = self.to_v(x)
-                w = 0.8
+                #added weight
+                w = 0.5
                 source_batch_size = int(q.shape[0] // 3)
                 
                 #第一部分content第二部分无条件的第三部分有条件的
                 # inject unconditional
-                k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
-                v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
-                
+                #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
+                #v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
+                k[source_batch_size:2 * source_batch_size] = (1 - w) * k[source_batch_size:2 * source_batch_size] + w * k[:source_batch_size]
+                k[2 * source_batch_size:] = (1 - w) * k[2 * source_batch_size:] + w * k[:source_batch_size]
                 
                 # inject conditional
-                k[2 * source_batch_size:] = k[:source_batch_size]
-                v[2 * source_batch_size:] = v[:source_batch_size]
+                #k[2 * source_batch_size:] = k[:source_batch_size]
+                #v[2 * source_batch_size:] = v[:source_batch_size]
+                v[source_batch_size:2 * source_batch_size] = (1 - w) * v[source_batch_size:2 * source_batch_size] + w * v[:source_batch_size]
+                v[2 * source_batch_size:] = (1 - w) * v[2 * source_batch_size:] + w * v[:source_batch_size]
 
+                #weight the query and keys
                 q = self.head_to_batch_dim(q)
                 k = self.head_to_batch_dim(k)
                 v = self.head_to_batch_dim(v)
