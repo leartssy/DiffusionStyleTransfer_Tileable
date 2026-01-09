@@ -886,7 +886,7 @@ if __name__ == "__main__":
     parser.add_argument('--out_size',type=int, default=2048, help="Output image size")
     parser.add_argument('--keep_aspect_ratio',type=str_to_bool, default=True,help="Keep original aspect ratio of content image")
     parser.add_argument('--pro_size',type=int, default=512,help="size of default output and the image being processed")
-    parser.add_argument('--pnp_attn_t', type=float, default=0.2, help="Stop attention injection at this % of steps")
+    parser.add_argument('--pnp_attn_t', type=float, default=0.95, help="Stop attention injection at this % of steps")
     parser.add_argument('--pnp_f_t', type=float, default=0.2, help="Stop feature injection at this % of steps")
 
     
