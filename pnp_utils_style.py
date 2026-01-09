@@ -115,6 +115,7 @@ def register_attention_control_efficient(model, injection_schedule):
                 q = self.to_q(x)
                 k = self.to_k(encoder_hidden_states)
 
+                
                 source_batch_size = int(q.shape[0] // 2)
                 # inject unconditional
                 #q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 

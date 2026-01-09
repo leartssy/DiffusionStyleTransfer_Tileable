@@ -28,21 +28,21 @@ import textile
 from textile.utils.image_utils import read_and_process_image
 import torch.nn.functional as F
 
-def load_img1(self, image_path, out_size=512, keep_aspect_ratio=True):
+def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
     image_pil = Image.open(image_path).convert("RGB")
     orig_w, orig_h = image_pil.size
 
     if keep_aspect_ratio:
         if orig_w >= orig_h:
-            target_w, target_h = out_size, int(orig_h * (out_size / orig_w))
+            target_w, target_h = pro_size, int(orig_h * (pro_size / orig_w))
         else:
-            target_h, target_w = out_size, int(orig_w * (out_size / orig_h))
+            target_h, target_w = pro_size, int(orig_w * (pro_size / orig_h))
     
         target_w, target_h = (target_w // 8) * 8, (target_h // 8) * 8
         image_pil = T.Resize((target_h, target_w), interpolation=T.InterpolationMode.LANCZOS)(image_pil)
     else:
-        image_pil = T.Resize(out_size, interpolation=T.InterpolationMode.LANCZOS)(image_pil)
-        image_pil = T.CenterCrop(out_size)(image_pil)
+        image_pil = T.Resize(pro_size, interpolation=T.InterpolationMode.LANCZOS)(image_pil)
+        image_pil = T.CenterCrop(pro_size)(image_pil)
         
     return image_pil
 
@@ -84,7 +84,7 @@ class PNP(nn.Module):
         lat_h, lat_w = content_latents.shape[-2:]
         current_height = lat_h * 8
         current_width = lat_w * 8
-        cond_image = load_img1(self,style_file, out_size=self.config.out_size, 
+        cond_image = load_img1(self,style_file, pro_size=self.config.pro_size, 
                                keep_aspect_ratio=self.config.keep_aspect_ratio)
         guidance_scale = self.config.guidance_scale #previously 7.5
         textile_guidance = self.config.textile_guidance_scale
@@ -272,7 +272,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         latents: Optional[torch.FloatTensor] = None,
         guidance_scale: float = 7.5,
         content_step = None,
-        height: int = 512,
+        height: int = 512, #passed dynamically from run_pnp
         width: int = 512,
         num_inference_steps: int = 50,
         generator: Optional[Union[torch.Generator, List[torch.Generator]]] = None,
