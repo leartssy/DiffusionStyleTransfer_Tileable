@@ -297,7 +297,7 @@ def run(opt):
                 out_fn = f'{opt.prefix_name}{content_fn_base}_s{style_fn_base}_raw.png'
                 save_path = os.path.join(opt.output_dir, out_fn)
                 
-                #if color transfer off: correct the colors
+                #if color transfer <1: correct the colors
                 color_strength = opt.color_strength
                 if color_strength < 1.0:
 
@@ -306,7 +306,14 @@ def run(opt):
                     print("Performing Color correction...")
                     generated_image_pil = transfer_color(source_image,content_file,intensity)
                     generated_image_pil = Image.fromarray(generated_image_pil)
-                
+                #if bigger than 1: option to enhance it more, take more color from style image
+                if color_strength > 1.0:
+
+                    intensity = (1 - color_strength)* (-1)
+                    source_image = np.array(generated_image_pil.convert('RGB'))
+                    print("Performing Color correction...")
+                    generated_image_pil = transfer_color(source_image,style_file,intensity)
+                    generated_image_pil = Image.fromarray(generated_image_pil)
                 #apply alpha
                 if original_alpha is not None:
                     print("Preserving Alpha...")
