@@ -96,7 +96,7 @@ def load_source_latents_t(t, latents_path):
     latents = torch.load(latents_t_path)
     return latents
 
-def register_attention_control_efficient(model, injection_schedule):
+def register_attention_control_efficient(model, injection_schedule, weight=0.5):
     def sa_forward(self):
         to_out = self.to_out
         if type(to_out) is torch.nn.modules.container.ModuleList:
@@ -135,7 +135,7 @@ def register_attention_control_efficient(model, injection_schedule):
                 k = self.to_k(x)
                 v = self.to_v(x)
                 #added weight
-                w = 0.5
+                w = self.attention_weight
                 source_batch_size = int(q.shape[0] // 3)
                 
                 #第一部分content第二部分无条件的第三部分有条件的
@@ -180,7 +180,7 @@ def register_attention_control_efficient(model, injection_schedule):
             module = model.unet.up_blocks[res].attentions[block].transformer_blocks[0].attn1
             module.forward = sa_forward(module)
             setattr(module, 'injection_schedule', injection_schedule)
-
+            setattr(module, 'attention_weight', weight) # Attach the weight value
 
 def register_conv_control_efficient(model, injection_schedule):
     def conv_forward(self):
