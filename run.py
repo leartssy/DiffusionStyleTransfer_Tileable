@@ -33,7 +33,7 @@ import textile
 import torch.nn as nn
 
 def get_resolution_folder(image_path, pro_size, keep_aspect_ratio):
-    """Calculates the target resolution and adds a suffix for the aspect ratio mode."""
+    """Calculates the target resolution and returns a folder name string."""
     with Image.open(image_path) as img:
         w, h = img.size
         if keep_aspect_ratio:
@@ -43,15 +43,12 @@ def get_resolution_folder(image_path, pro_size, keep_aspect_ratio):
             else:
                 target_h = pro_size
                 target_w = int(w * (pro_size / h))
-            mode_suffix = "aspect"
         else:
             target_w, target_h = pro_size, pro_size
-            mode_suffix = "square"
     
+    # Ensure dimensions are multiples of 8 for Stable Diffusion
     target_w, target_h = (target_w // 8) * 8, (target_h // 8) * 8
-    
-    # Example output: "512x512_square" or "512x384_aspect"
-    return f"{target_w}x{target_h}_{mode_suffix}"
+    return f"{target_w}x{target_h}"
 
 def make_model_circular(unet_model):
     """
@@ -138,12 +135,16 @@ def run(opt):
     all_content_latents = []
     print("\n[STEP 1] Loading/Extracting Content Latents...")
     for content_file in content_path:
-        
+
+        if opt.keep_aspect_ratio:
+            res_folder = get_resolution_folder(content_file, opt.pro_size, True)
+            mode_tag = "original_ratio"
+        else:
+            res_folder = f"{opt.pro_size}x{opt.pro_size}"
+            mode_tag = "center_crop"
         seed_everything(opt.seed)
         #add specific name for image resolution
-        res_name = get_resolution_folder(content_file, opt.pro_size, opt.keep_aspect_ratio)
-
-        save_path = os.path.join(base_save_path, res_name, os.path.splitext(os.path.basename(content_file))[0])
+        save_path = os.path.join(base_save_path, res_folder, mode_tag, os.path.splitext(os.path.basename(content_file))[0])
         os.makedirs(save_path, exist_ok=True)
         
         # Check for the *first* latent file to determine if extraction is needed
@@ -227,9 +228,7 @@ def run(opt):
                 save_path=save_path,
                 timesteps_to_save=style_timesteps_to_save,
                 inversion_prompt=opt.inversion_prompt,
-                extract_reverse=opt.extract_reverse,
-                pro_size=opt.pro_size,
-                keep_aspect_ratio=opt.keep_aspect_ratio
+                extract_reverse=opt.extract_reverse
             )
             # You might want to save the content_latents aggregated here:
             torch.save(style_latents.cpu(), aggregated_path)
