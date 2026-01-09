@@ -227,7 +227,9 @@ def run(opt):
                 save_path=save_path,
                 timesteps_to_save=style_timesteps_to_save,
                 inversion_prompt=opt.inversion_prompt,
-                extract_reverse=opt.extract_reverse
+                extract_reverse=opt.extract_reverse,
+                pro_size = opt.pro_size,
+                keep_aspect_ratio=opt.keep_aspect_ratio
             )
             # You might want to save the content_latents aggregated here:
             torch.save(style_latents.cpu(), aggregated_path)
@@ -881,7 +883,7 @@ if __name__ == "__main__":
     parser.add_argument('--blurring',type=int, default=3,choices=range(1,10,2), help="Size of Gaussian blur to make merging softer.Use odd numbers only.")
     parser.add_argument('--maintain_size',type=bool, default=False,help="maintain images default size")
     parser.add_argument('--out_size',type=int, default=2048, help="Output image size")
-    parser.add_argument('--keep_aspect_ratio',type=bool, default=True,help="Keep original aspect ratio of content image")
+    parser.add_argument('--keep_aspect_ratio',type=str_to_bool, default=True,help="Keep original aspect ratio of content image")
     parser.add_argument('--pro_size',type=int, default=512,help="size of default output and the image being processed")
 
     
