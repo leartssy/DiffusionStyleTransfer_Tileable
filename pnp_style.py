@@ -77,7 +77,9 @@ class PNP(nn.Module):
         all_times = []
         
         pnp_f_t = int(self.config.ddim_steps * self.config.alpha)
-        pnp_attn_t = int(self.config.ddim_steps * self.config.alpha)
+        #pnp_attn_t = int(self.config.ddim_steps * self.config.alpha)
+        #test control self attention to be lower
+        pnp_attn_t = int(self.config.ddim_steps * self.config.pnp_attn_t)
 
         content_step = self.init_pnp(conv_injection_t=pnp_f_t, qk_injection_t=pnp_attn_t)
         cond_subject = ""
