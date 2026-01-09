@@ -110,12 +110,12 @@ class Preprocess(nn.Module):
         else:
             target_w, target_h = pro_size, pro_size
 
-            resize = T.Resize(pro_size, interpolation=T.InterpolationMode.LANCZOS)
-            crop = T.CenterCrop(512)
-
-            image_pil = resize(image_pil)
-            #for cropping out the center if not already square
-            image_pil = crop(image_pil)
+            transform = T.Compose([
+                T.Resize(pro_size, interpolation=T.InterpolationMode.LANCZOS),
+                T.CenterCrop(pro_size)
+            ])
+            
+            image_pil = transform(image_pil)
 
         image = T.ToTensor()(image_pil).unsqueeze(0).to(self.device)
         print(f"[INFO] Image loaded with resolution: {target_w}x{target_h}")
