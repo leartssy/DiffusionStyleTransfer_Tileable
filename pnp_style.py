@@ -343,11 +343,24 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             register_time(self, t.item())
             do_classifier_free_guidance = guidance_scale > 1.0
             
+            #safety if style and content latents not same aspect ratio
+            target_h, target_w = latents.shape[-2:] #size of current
+
             if t in content_step:
                 content_lat = content_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
             elif i < style_stop_index:
                 style_lat = style_latents[i].unsqueeze(0)
+                
+                #if style latents aspect ratio doesn´t match
+                if style_lat.shape[-2:] != (target_h, target_w):
+                    style_lat = F.interpolate(
+                        style_lat,
+                        size=(target_h, target_w),
+                        mode="bilinear",
+                        align_corners=False,
+                    )
+
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
             
             else:
