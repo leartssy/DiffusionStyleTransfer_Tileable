@@ -113,7 +113,8 @@ def run(opt):
     #pnp = PNP(blip_diffusion_pipe, opt)
 
     #TexTile pass guidance scale
-    pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
+    pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale, pnp_attn_t=opt.pnp_attn_t, # Pass the new argument
+        pnp_f_t=opt.pnp_f_t)
     #
 
     # start of optimized latent loading code by gemini

@@ -48,7 +48,7 @@ def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
 
 
 class PNP(nn.Module):
-    def __init__(self, pipe, config, textile_guidance_scale): #textile guidance_scale for texTile
+    def __init__(self, pipe, config, textile_guidance_scale, pnp_attn_t=20, pnp_f_t=20): #textile guidance_scale for texTile
         super().__init__()
         self.config = config
         self.device = config.device
@@ -57,6 +57,9 @@ class PNP(nn.Module):
         
         #use custom Blip class instead
         self.pipe = BLIP_With_Textile(pipe, textile_guidance_scale, config.alpha, config.ddim_steps)
+        
+        self.pnp_attn_t = pnp_attn_t
+        self.pnp_f_t = pnp_f_t
         #end custom class
 
         self.pipe.scheduler.set_timesteps(config.ddim_steps, device=self.device)
@@ -347,10 +350,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             target_h, target_w = latents.shape[-2:] #size of current
 
             if t in content_step:
-                content_lat = content_latents[i].unsqueeze(0)
+                content_lat = content_latents[t].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
             elif i < style_stop_index:
-                style_lat = style_latents[i].unsqueeze(0)
+                style_lat = style_latents[t].unsqueeze(0)
                 
                 #if style latents aspect ratio doesn´t match
                 if style_lat.shape[-2:] != (target_h, target_w):
@@ -366,7 +369,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             else:
                 latent_model_input = torch.cat([latents]*3) if do_classifier_free_guidance else latents
 
-            latent_model_input = latent_model_input.to(self.unet.device).to(torch.float16)
+            latent_model_input = latent_model_input.to(device).half()
 
             noise_pred = self.unet(
                 latent_model_input,
