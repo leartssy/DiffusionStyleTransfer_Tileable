@@ -32,6 +32,24 @@ import textile
 
 import torch.nn as nn
 
+def get_resolution_folder(image_path, pro_size, keep_aspect_ratio):
+    """Calculates the target resolution and returns a folder name string."""
+    with Image.open(image_path) as img:
+        w, h = img.size
+        if keep_aspect_ratio:
+            if w >= h:
+                target_w = pro_size
+                target_h = int(h * (pro_size / w))
+            else:
+                target_h = pro_size
+                target_w = int(w * (pro_size / h))
+        else:
+            target_w, target_h = pro_size, pro_size
+    
+    # Ensure dimensions are multiples of 8 for Stable Diffusion
+    target_w, target_h = (target_w // 8) * 8, (target_h // 8) * 8
+    return f"{target_w}x{target_h}"
+
 def make_model_circular(unet_model):
     """
     Patches a U-Net to use explicit circular padding on both axes.
@@ -119,8 +137,10 @@ def run(opt):
     for content_file in content_path:
         
         seed_everything(opt.seed)
+        #add specific name for image resolution
+        res_name = get_resolution_folder(content_file, opt.pro_size, opt.keep_aspect_ratio)
 
-        save_path = os.path.join(base_save_path, os.path.splitext(os.path.basename(content_file))[0])
+        save_path = os.path.join(base_save_path, res_name, os.path.splitext(os.path.basename(content_file))[0])
         os.makedirs(save_path, exist_ok=True)
         
         # Check for the *first* latent file to determine if extraction is needed
@@ -180,7 +200,8 @@ def run(opt):
     
     for style_file in style_path:
         
-        save_path = os.path.join(base_save_path, os.path.splitext(os.path.basename(style_file))[0])
+        res_name = get_resolution_folder(style_file, opt.pro_size, opt.keep_aspect_ratio)
+        save_path = os.path.join(base_save_path, res_name, os.path.splitext(os.path.basename(style_file))[0])
         os.makedirs(save_path, exist_ok=True)
         
         check_path = os.path.join(save_path, f'noisy_latents_0.pt')
