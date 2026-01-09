@@ -138,13 +138,12 @@ def run(opt):
 
         if opt.keep_aspect_ratio:
             res_folder = get_resolution_folder(content_file, opt.pro_size, True)
-            mode_tag = "original_ratio"
         else:
-            res_folder = f"{opt.pro_size}x{opt.pro_size}"
-            mode_tag = "center_crop"
+            res_folder = f"{opt.pro_size}x{opt.pro_size}_square"
+
         seed_everything(opt.seed)
         #add specific name for image resolution
-        save_path = os.path.join(base_save_path, res_folder, mode_tag, os.path.splitext(os.path.basename(content_file))[0])
+        save_path = os.path.join(base_save_path, res_folder, os.path.splitext(os.path.basename(content_file))[0])
         os.makedirs(save_path, exist_ok=True)
         
         # Check for the *first* latent file to determine if extraction is needed
