@@ -360,7 +360,6 @@ def run(opt):
         
         
         upscale_pass = 0
-        
         #recursive upscaling with tiling
         while image.size[0] < target_w or image.size[1] < target_h:
             upscale_pass +=1
@@ -368,10 +367,9 @@ def run(opt):
             pad = 32 
             img_np = np.array(image)
             padded_np = np.pad(img_np, ((pad, pad), (pad, pad), (0, 0)), mode='wrap')
-            # Note: Actually, for best results, use 'reflect' padding if using cv2, 
-            # but for PIL, expanding by copying the edge is easiest:
-            image = Image.fromarray(padded_np)
-            curr_w, curr_h = image.size
+            # expanding by copying the edge is easiest:
+            proc_image = Image.fromarray(padded_np)
+            curr_w, curr_h = proc_image.size
             print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
             
             # Check if we actually need another 4x pass
@@ -395,7 +393,7 @@ def run(opt):
                     right = min(curr_w, (col + 1) * tile_w + overlap)
                     bottom = min(curr_h, (row + 1) * tile_h + overlap)
 
-                    tile = image.crop((left,top,right,bottom))
+                    tile = proc_image.crop((left,top,right,bottom))
 
                     # Prepare input
                     inputs = processor(tile, return_tensors="pt").to(opt.device).to(torch.float16)
@@ -445,7 +443,7 @@ def run(opt):
                 stitched.width - final_pad, 
                 stitched.height - final_pad
             ))
-
+            print(f"Pass {upscale_pass} finished. New Size: {image.size}")
             if image.size[0] >= target_w and image.size[1] >= target_h:
                 break
             if upscale_pass >= 2: break
@@ -755,38 +753,38 @@ def generate_sobel_normal(image, strength=2.0):
     
     return Image.fromarray(res)
 
-def upscale_image_ai(image_pil, prompt, device="cuda"):
-    """Use Real-ESRGAN to upscale the image with sharp details."""
-    from diffusers import StableDiffusionUpscalePipeline
-    import torch
+#def upscale_image_ai(image_pil, prompt, device="cuda"):
+    #"""Use Stable Diffusion x4 Upscaler."""
+    #from diffusers import StableDiffusionUpscalePipeline
+    #import torch
 
     # Handle Alpha Channel
-    original_rgba = image_pil.convert("RGBA")
-    alpha = original_rgba.split()[-1]
-    image_rgb = image_pil.convert("RGB")
+   # original_rgba = image_pil.convert("RGBA")
+    #alpha = original_rgba.split()[-1]
+    #image_rgb = image_pil.convert("RGB")
     
-    model_id = "stabilityai/stable-diffusion-x4-upscaler"
-    upscaler = StableDiffusionUpscalePipeline.from_pretrained(
-        model_id, revision="fp16", torch_dtype=torch.float16
-    ).to(device)
+    #model_id = "stabilityai/stable-diffusion-x4-upscaler"
+    #upscaler = StableDiffusionUpscalePipeline.from_pretrained(
+      #  model_id, revision="fp16", torch_dtype=torch.float16
+   # ).to(device)
     
-    upscaled_image = upscaler(
-        prompt=prompt,
-        image=image_pil,
-        guidance_scale=7.5,
-        num_inference_steps=20
-    ).images[0]
+   # upscaled_image = upscaler(
+       # prompt=prompt,
+       # image=image_pil,
+        #guidance_scale=7.5,
+       # num_inference_steps=20
+   # ).images[0]
 
     # Restore Alpha
     # Resize original alpha to match new high-res dimensions
-    upscaled_alpha = alpha.resize(upscaled_image.size, resample=Image.LANCZOS)
-    upscaled_image = Image.merge("RGBA", (*upscaled_image.split(), upscaled_alpha))
+    #upscaled_alpha = alpha.resize(upscaled_image.size, resample=Image.LANCZOS)
+    #upscaled_image = Image.merge("RGBA", (*upscaled_image.split(), upscaled_alpha))
 
     # Clean up immediately
-    del upscaler
-    torch.cuda.empty_cache()
+    #del upscaler
+    #torch.cuda.empty_cache()
 
-    return upscaled_image
+    #return upscaled_image
 
 def get_file_list(path_input):
     #if input is single file, use single file, if path, use folder
