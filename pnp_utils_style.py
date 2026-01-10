@@ -134,6 +134,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     # inject conditional
                     q[2 * source_batch_size:] = (1 - current_weight) * q[2 * source_batch_size:] +current_weight * q[:source_batch_size]
                     k[2 * source_batch_size:] = (1 - current_weight) * k[2 * source_batch_size:] + current_weight * k[:source_batch_size]
+                    v[source_batch_size:] = (1 - current_weight) * v[source_batch_size:] + current_weight * v[:source_batch_size]
                     #q[2 * source_batch_size:] = q[:source_batch_size] 
                     #k[2 * source_batch_size:] = k[:source_batch_size]
                 else:
