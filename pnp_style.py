@@ -64,7 +64,7 @@ class PNP(nn.Module):
     def init_pnp(self, conv_injection_t, qk_injection_t):
         self.qk_injection_timesteps = self.pipe.scheduler.timesteps[:qk_injection_t] if qk_injection_t >= 0 else []
         self.conv_injection_timesteps = self.pipe.scheduler.timesteps[:conv_injection_t] if conv_injection_t >= 0 else []
-        register_attention_control_efficient(self.pipe, self.qk_injection_timesteps, weight=self.config.attention_weight)
+        register_attention_control_efficient(self.pipe, self.qk_injection_timesteps)
         register_conv_control_efficient(self.pipe, self.conv_injection_timesteps)
         return self.qk_injection_timesteps
     
