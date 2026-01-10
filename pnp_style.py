@@ -51,10 +51,11 @@ class PNP(nn.Module):
         self.device = config.device
         #old code without TexTile:use to switch without TexTile
         #self.pipe = pipe
-        
+        pipe.__class__ = BLIP_With_Textile
         #use custom Blip class instead
-        self.pipe = BLIP_With_Textile(pipe, textile_guidance_scale, config.alpha, config.ddim_steps)
+        self.pipe = pipe
         
+        self.textile_guidance_scale = textile_guidance_scale
         self.pnp_attn_t = pnp_attn_t
         self.pnp_f_t = pnp_f_t
         #end custom class
@@ -94,7 +95,7 @@ class PNP(nn.Module):
         num_inference_steps = self.config.ddim_steps
         negative_prompt = "over-exposure, under-exposure, saturated, duplicate, out of frame, lowres, cropped, worst quality, low quality, jpeg artifacts, morbid, mutilated, out of frame, ugly, bad anatomy, bad proportions, deformed, blurry, duplicate"
         
-        init_latents = content_latents[-1].unsqueeze(0).to(self.device)
+        init_latents = content_latents[-1].unsqueeze(0).to(self.device).half()
 
         
 
@@ -186,11 +187,11 @@ class BLIP(BlipDiffusionPipeline):
             uncond_embeddings = self.text_encoder(
                 input_ids=uncond_input.input_ids.to(device),
                 ctx_embeddings=None,
-            )[0]
+            )[0].half()
             # For classifier free guidance, we need to do two forward passes.
             # Here we concatenate the unconditional and text embeddings into a single batch
             # to avoid doing two forward passes
-            text_embeddings = torch.cat([uncond_embeddings, uncond_embeddings, text_embeddings])
+            text_embeddings = torch.cat([uncond_embeddings, uncond_embeddings, text_embeddings]).half()
 
         scale_down_factor = 2 ** (len(self.unet.config.block_out_channels) - 1)
 
@@ -242,20 +243,7 @@ class BLIP(BlipDiffusionPipeline):
 
 #Create a new custom class that integrates TexTile
 class BLIP_With_Textile(BlipDiffusionPipeline):    
-    #different code:
-    # Custom constructor to accept and initialize the TexTile metric
-    def __init__(self, original_pipe, textile_guidance_scale, alpha, ddim_steps):
-        # 2. Store new parameters and initialize the TexTile loss
-        self._textile_guidance_scale = 0 #no textile
-        self._original_pipe = original_pipe
-        self._alpha = alpha
-        self._ddim_steps = ddim_steps
-        self.textile_metric = None
-    #end of different code
-        
-        # 1. Copy all components from the original loaded pipeline (e.g., vae, unet, scheduler)
-        components_dict = original_pipe.components
-        super().__init__(**components_dict)
+   
     @torch.no_grad()
     def __call__(
         self,
@@ -284,7 +272,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         reference_image = self.image_processor.preprocess(
             reference_image, image_mean=self.config.mean, image_std=self.config.std, return_tensors="pt"
         )["pixel_values"]
-        reference_image = reference_image.to(device)
+        reference_image = reference_image.to(device).half()
 
         if isinstance(prompt, str):
             prompt = [prompt]
@@ -302,7 +290,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             prompt_reps=prompt_reps,
         )
         query_embeds = self.get_query_embeddings(reference_image, source_subject_category)
-        text_embeddings = self.encode_prompt(query_embeds, prompt, device)
+        text_embeddings = self.encode_prompt(query_embeds, prompt, device).half()
         do_classifier_free_guidance = guidance_scale > 1.0
         if do_classifier_free_guidance:
             max_length = self.text_encoder.text_model.config.max_position_embeddings
@@ -316,11 +304,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             uncond_embeddings = self.text_encoder(
                 input_ids=uncond_input.input_ids.to(device),
                 ctx_embeddings=None,
-            )[0]
+            )[0].half()
             # For classifier free guidance, we need to do two forward passes.
             # Here we concatenate the unconditional and text embeddings into a single batch
             # to avoid doing two forward passes
-            text_embeddings = torch.cat([uncond_embeddings, uncond_embeddings, text_embeddings])
+            text_embeddings = torch.cat([uncond_embeddings, uncond_embeddings, text_embeddings]).half()
 
         scale_down_factor = 2 ** (len(self.unet.config.block_out_channels) - 1)
 
@@ -336,27 +324,27 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             #safety if style and content latents not same aspect ratio
             target_h, target_w = latents.shape[-2:] #size of current
 
+           # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
+            # 2. Move to device and convert to .half() immediately
             if t in content_step:
-                content_lat = content_latents[i].unsqueeze(0)
-                latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
+                source_lat = content_latents[i].unsqueeze(0).to(device).half()
             elif i < style_stop_index:
-                style_lat = style_latents[i].unsqueeze(0)
-                
-                #if style latents aspect ratio doesn´t match
-                if style_lat.shape[-2:] != (target_h, target_w):
-                    style_lat = F.interpolate(
-                        style_lat,
-                        size=(target_h, target_w),
-                        mode="bilinear",
-                        align_corners=False,
-                    )
-
-                latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
-            
+                source_lat = style_latents[i].unsqueeze(0).to(device).half()
+                # Handle aspect ratio safety
+                if source_lat.shape[-2:] != (target_h, target_w):
+                    source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
             else:
-                latent_model_input = torch.cat([latents]*3) if do_classifier_free_guidance else latents
+                # Fallback: if no source is provided, use current latents to maintain batch size
+                source_lat = latents
 
-            latent_model_input = latent_model_input.to(device).half()
+            # 3. Build the 3-batch: [Source, Unconditional, Conditional]
+            if do_classifier_free_guidance:
+                latent_model_input = torch.cat([source_lat] + [latents] * 2)
+            else:
+                latent_model_input = torch.cat([source_lat] + [latents])
+
+            # Ensure final input is half precision
+            latent_model_input = latent_model_input.half()
 
             noise_pred = self.unet(
                 latent_model_input,
