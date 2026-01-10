@@ -96,7 +96,7 @@ def load_source_latents_t(t, latents_path):
     latents = torch.load(latents_t_path)
     return latents
 
-def register_attention_control_efficient(model, injection_schedule, weight=0.5):
+def register_attention_control_efficient(model, injection_schedule):
     def sa_forward(self):
         to_out = self.to_out
         if type(to_out) is torch.nn.modules.container.ModuleList:
@@ -104,7 +104,7 @@ def register_attention_control_efficient(model, injection_schedule, weight=0.5):
         else:
             to_out = self.to_out
 
-        def forward(x, encoder_hidden_states=None, attention_mask=None, return_dict=False):
+        def forward(x, encoder_hidden_states=None, attention_mask=None):
             batch_size, sequence_length, dim = x.shape
             h = self.heads
 
@@ -115,7 +115,6 @@ def register_attention_control_efficient(model, injection_schedule, weight=0.5):
                 q = self.to_q(x)
                 k = self.to_k(encoder_hidden_states)
 
-                
                 source_batch_size = int(q.shape[0] // 2)
                 # inject unconditional
                 q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
@@ -134,24 +133,18 @@ def register_attention_control_efficient(model, injection_schedule, weight=0.5):
                 q = self.to_q(x)
                 k = self.to_k(x)
                 v = self.to_v(x)
-                #added weight
-                w = self.attention_weight
+                w = 0.8
                 source_batch_size = int(q.shape[0] // 3)
-                
                 #第一部分content第二部分无条件的第三部分有条件的
                 # inject unconditional
                 k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
                 v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
-                k[source_batch_size:2 * source_batch_size] = (1 - w) * k[source_batch_size:2 * source_batch_size] + w * k[:source_batch_size]
-                k[2 * source_batch_size:] = (1 - w) * k[2 * source_batch_size:] + w * k[:source_batch_size]
+                
                 
                 # inject conditional
                 k[2 * source_batch_size:] = k[:source_batch_size]
                 v[2 * source_batch_size:] = v[:source_batch_size]
-                v[source_batch_size:2 * source_batch_size] = (1 - w) * v[source_batch_size:2 * source_batch_size] + w * v[:source_batch_size]
-                v[2 * source_batch_size:] = (1 - w) * v[2 * source_batch_size:] + w * v[:source_batch_size]
 
-                #weight the query and keys
                 q = self.head_to_batch_dim(q)
                 k = self.head_to_batch_dim(k)
                 v = self.head_to_batch_dim(v)
@@ -180,7 +173,6 @@ def register_attention_control_efficient(model, injection_schedule, weight=0.5):
             module = model.unet.up_blocks[res].attentions[block].transformer_blocks[0].attn1
             module.forward = sa_forward(module)
             setattr(module, 'injection_schedule', injection_schedule)
-            setattr(module, 'attention_weight', weight) # Attach the weight value
 
 def register_conv_control_efficient(model, injection_schedule):
     def conv_forward(self):
