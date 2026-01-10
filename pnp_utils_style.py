@@ -96,7 +96,7 @@ def load_source_latents_t(t, latents_path):
     latents = torch.load(latents_t_path)
     return latents
 
-def register_attention_control_efficient(model, injection_schedule):
+def register_attention_control_efficient(model, injection_schedule, attention_weight=1.0):
     def sa_forward(self):
         to_out = self.to_out
         if type(to_out) is torch.nn.modules.container.ModuleList:
@@ -114,18 +114,25 @@ def register_attention_control_efficient(model, injection_schedule):
                     self.t in self.injection_schedule or self.t == 1000):
                 q = self.to_q(x)
                 k = self.to_k(encoder_hidden_states)
+                v = self.to_v(encoder_hidden_states)
 
-                source_batch_size = int(q.shape[0] // 2)
+                source_batch_size = int(q.shape[0] // 3)
+
+                # blended attention injection
+
                 # inject unconditional
-                q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
-                k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
+                #q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
+                #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
+                k[source_batch_size:2 * source_batch_size] = (1 - attention_weight) * k[source_batch_size:2 * source_batch_size] + attention_weight * k[:source_batch_size]
+                v[source_batch_size:2 * source_batch_size] = (1 - attention_weight) * v[source_batch_size:2 * source_batch_size] + attention_weight * v[:source_batch_size]
                 # inject conditional
-                q[2 * source_batch_size:] = q[:source_batch_size] 
-                k[2 * source_batch_size:] = k[:source_batch_size]
+                k[2 * source_batch_size:] = (1 - attention_weight) * k[2 * source_batch_size:] + attention_weight * k[:source_batch_size]
+                v[2 * source_batch_size:] = (1 - attention_weight) * v[2 * source_batch_size:] + attention_weight * v[:source_batch_size]
+                #q[2 * source_batch_size:] = q[:source_batch_size] 
+                #k[2 * source_batch_size:] = k[:source_batch_size]
 
                 q = self.head_to_batch_dim(q)
                 k = self.head_to_batch_dim(k)
-                v = self.to_v(encoder_hidden_states)
                 v = self.head_to_batch_dim(v)
 
 
