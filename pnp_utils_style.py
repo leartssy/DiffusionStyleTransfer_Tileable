@@ -116,7 +116,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     k = self.to_k(encoder_hidden_states)
                     v = self.to_v(encoder_hidden_states)
 
-                    source_batch_size = int(q.shape[0] // 2)
+                    source_batch_size = int(q.shape[0] // 3)
 
                     # blended attention injection
 
