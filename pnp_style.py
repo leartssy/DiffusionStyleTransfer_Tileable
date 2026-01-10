@@ -23,9 +23,6 @@ from transformers import logging
 from pnp_utils_style import *
 from pnp_utils_style import register_time
 import time
-#TexTile Integration
-import textile
-from textile.utils.image_utils import read_and_process_image
 import torch.nn.functional as F
 
 def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
