@@ -249,16 +249,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
     # Custom constructor to accept and initialize the TexTile metric
     def __init__(self, original_pipe, textile_guidance_scale, alpha, ddim_steps):
         # 2. Store new parameters and initialize the TexTile loss
-        self._textile_guidance_scale = textile_guidance_scale
+        self._textile_guidance_scale = 0 #no textile
         self._original_pipe = original_pipe
         self._alpha = alpha
         self._ddim_steps = ddim_steps
-        if self._textile_guidance_scale > 0:
-            # Initialize the TexTile loss function (the metric)
-            print(f"[INFO] Initializing TexTile metric with scale: {self._textile_guidance_scale}")
-            self.textile_metric = textile.Textile().to(original_pipe.device) 
-        else:
-            self.textile_metric = None
+        self.textile_metric = None
     #end of different code
         
         # 1. Copy all components from the original loaded pipeline (e.g., vae, unet, scheduler)
@@ -285,6 +280,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         prompt_reps: int = 20,
         output_type: Optional[str] = "pil",
         return_dict: bool = True,
+        **kwargs # Catch-all for extra params
     ):
         device = self.unet.device
 
@@ -331,17 +327,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
         scale_down_factor = 2 ** (len(self.unet.config.block_out_channels) - 1)
 
-        extra_set_kwargs = {}
-        self.scheduler.set_timesteps(num_inference_steps, **extra_set_kwargs)
+        self.scheduler.set_timesteps(num_inference_steps)
 
-        #calculate where style injection is expected to start
-        style_start_index = int(num_inference_steps * self._alpha)
         style_stop_index = int(num_inference_steps)
-        #textile start -> delay running of textile into last steps
-        tex_start = 0.1
-        Textile_start_step = int(num_inference_steps * tex_start)
-        
-
+    
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if we are doing classifier free guidance
             register_time(self, t.item())
@@ -385,57 +374,6 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 _, noise_pred_uncond, noise_pred_text = noise_pred.chunk(3)
                 noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
                 
-            ####Insert TextTile Guidance code
-            #try integrating textile as ramp
-            Ramp_start = Textile_start_step #starts at start percent
-            Ramp_end = int(num_inference_steps)
-            Max_scale = self._textile_guidance_scale
-            Textile_skip = 20
-
-            current_textile_scale = 0.0
-            if i>= Ramp_start:
-                  ramp_progress = (i-Ramp_start) / (Ramp_end - Ramp_start)
-                  ramp_progress = min(1.0,ramp_progress)
-                  current_textile_scale = Max_scale * ramp_progress
-
-            is_textile_step = (i % Textile_skip == 0) and not (i == num_inference_steps)
-            if self.textile_metric is not None and self._textile_guidance_scale > 0 and is_textile_step:
-              #Only activate TexTile during the style-focused steps ---
-                if i >= Textile_start_step:
-                  # 1. Decode the current latents to pixel space (required by TexTile)
-                  # Note: This decoding step is computationally expensive and needs to be done carefully.
-                  # We temporarily enable gradients and clone latents for safety
-                  print(f"[TexTile Debug] Step {i}: TexTile ACTIVE (Late-Stage Correction)")
-                  latents_clone = latents.clone().detach().to(torch.float16).requires_grad_(True)
-        
-                  # Set latents to require grad for backpropagation
-                  
-                  with torch.enable_grad(): # Ensure gradients are enabled for the tileability loss
-
-                      # Temporarily decode to get the image for the metric  
-                      current_image = self.vae.decode(latents_clone / self.vae.config.scaling_factor, return_dict=False)[0]
-                      
-                      # 2. Calculate the differentiable TexTile metric
-                      tileability_value = self.textile_metric(current_image) 
-                      
-                      # 3. Calculate the gradient of the metric
-                      grad = torch.autograd.grad(tileability_value, latents_clone)[0]
-                      #for debugging: checks if Textile gradient high enough to have influence
-                      # Scale by the noise schedule's sigma to keep magnitude consistent
-                      alpha_cumprod = self.scheduler.alphas_cumprod[i]
-                      sigma = torch.sqrt(1 - alpha_cumprod)
-                      #test:make scale bigger
-                      grad_scaled = grad
-                      # 4. Apply the guidance as an additional noise prediction component
-                      noise_pred = noise_pred + current_textile_scale * grad_scaled.to(noise_pred.dtype) * sigma
-                      #for debugging
-                      if i % 5 == 0 or i == self.scheduler.num_inference_steps: 
-                        print(f"[TexTile Debug] Step {i}/{self.scheduler.num_inference_steps-1} | Loss: {tileability_value.item():.5f} | Grad Norm: {grad.norm().item():.5f}")
-                #for debugging: see when Textile inactive
-                elif i % 10 == 0 or i == 0:
-                    print(f"[TexTile Debug] Step {i}: TexTile INACTIVE (Content Injection Phase)")
-              
-            #### End of TexTile integration
 
             latents = self.scheduler.step(
                 noise_pred,
