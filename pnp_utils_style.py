@@ -118,7 +118,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             source_batch_size = int(q.shape[0] // 2)
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
-                if self.t in self.injection_schedule or self.t == 250:
+                if self.t in self.injection_schedule or self.t == 1000:
 
                     # blended attention injection
 
