@@ -140,14 +140,14 @@ def register_attention_control_efficient(model, injection_schedule, weight=0.5):
                 
                 #第一部分content第二部分无条件的第三部分有条件的
                 # inject unconditional
-                #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
-                #v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
+                k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
+                v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
                 k[source_batch_size:2 * source_batch_size] = (1 - w) * k[source_batch_size:2 * source_batch_size] + w * k[:source_batch_size]
                 k[2 * source_batch_size:] = (1 - w) * k[2 * source_batch_size:] + w * k[:source_batch_size]
                 
                 # inject conditional
-                #k[2 * source_batch_size:] = k[:source_batch_size]
-                #v[2 * source_batch_size:] = v[:source_batch_size]
+                k[2 * source_batch_size:] = k[:source_batch_size]
+                v[2 * source_batch_size:] = v[:source_batch_size]
                 v[source_batch_size:2 * source_batch_size] = (1 - w) * v[source_batch_size:2 * source_batch_size] + w * v[:source_batch_size]
                 v[2 * source_batch_size:] = (1 - w) * v[2 * source_batch_size:] + w * v[:source_batch_size]
 
