@@ -181,7 +181,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             module.forward = sa_forward(module)
             setattr(module, 'injection_schedule', injection_schedule)
 
-def register_conv_control_efficient(model, injection_schedule):
+def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
     def conv_forward(self):
         def forward(input_tensor, temb):
             hidden_states = input_tensor
@@ -220,10 +220,14 @@ def register_conv_control_efficient(model, injection_schedule):
             hidden_states = self.conv2(hidden_states)
             if self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
                 source_batch_size = int(hidden_states.shape[0] // 3)
+                
+                #weigthed injection
                 # inject unconditional
-                hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
+                #hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
+                hidden_states[source_batch_size:2 * source_batch_size] = (1 - conv_weight) * hidden_states[source_batch_size:2 * source_batch_size] + conv_weight * hidden_states[:source_batch_size]
                 # inject conditional
-                hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
+                hidden_states[2 * source_batch_size:] = (1 - conv_weight) * hidden_states[2 * source_batch_size:] + conv_weight * hidden_states[:source_batch_size]
+                #hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
 
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
