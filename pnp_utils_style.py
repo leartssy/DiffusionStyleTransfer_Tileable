@@ -135,9 +135,9 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                 #q[2 * source_batch_size:] = q[:source_batch_size] 
                 #k[2 * source_batch_size:] = k[:source_batch_size]
 
-                q = self.head_to_batch_dim(q)
-                k = self.head_to_batch_dim(k)
-                v = self.head_to_batch_dim(v)
+            q = self.head_to_batch_dim(q)
+            k = self.head_to_batch_dim(k)
+            v = self.head_to_batch_dim(v)
 
 
             #else :
