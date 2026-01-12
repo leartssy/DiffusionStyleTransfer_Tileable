@@ -259,7 +259,7 @@ def run(opt):
         print("Enabling circular padding for tileability...")
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
         blip_diffusion_pipe.vae = patch_vae_circular(blip_diffusion_pipe.vae)
-        pnp = PNP(blip_diffusion_pipe, opt, opt.textile_guidance_scale)
+        pnp = PNP(blip_diffusion_pipe, opt)
     
     base_res_path = []
 
