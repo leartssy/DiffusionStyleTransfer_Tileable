@@ -26,9 +26,6 @@ import torchvision.transforms as T
 from preprocess_style import get_timesteps, Preprocess
 from pnp_style import PNP, BLIP, BLIP_With_Textile
 
-#TexTileImports
-import textile 
-#endTextileImports
 
 import torch.nn as nn
 
@@ -864,7 +861,7 @@ if __name__ == "__main__":
     #not hardcoded model key
     parser.add_argument('--model_key', type=str, required=True, help='Path to the directory containing the pretrained model files (e.g., blipdiffusion folder).')
     #Textile
-    parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
+    #parser.add_argument('--textile_guidance_scale', type=float, default=0.0, help="Strength of the TexTile loss for tileability constraint (0.0 to disable).")
     parser.add_argument('--is_tileable', type=str_to_bool, default=False, help="Set to true or False for circular padding")
     parser.add_argument('--gen_normal', type=str_to_bool, default=False, help="Set to true or False for normal map generation")
     parser.add_argument('--color_strength', type=float, default=1.0, help="Strength of the color of style image for transfer (0.0-1.0).")
