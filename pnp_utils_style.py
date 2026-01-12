@@ -115,7 +115,6 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             k = self.to_k(encoder_hidden_states)
             v = self.to_v(encoder_hidden_states)
                 
-            source_batch_size = int(q.shape[0] // 2)
 
             #newly added
             decay_factor = self.t / 1000.0
@@ -123,7 +122,8 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
                 if self.t in self.injection_schedule or self.t == 1000:
-
+                    
+                    source_batch_size = int(q.shape[0] // 2)
                     # blended attention injection
 
                     # inject unconditional
@@ -137,7 +137,15 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     #q[2 * source_batch_size:] = q[:source_batch_size] 
                     #k[2 * source_batch_size:] = k[:source_batch_size]
                 else:
-                    # Blend K and V for subtle color/texture anchoring
+                    source_batch_size = int(q.shape[0] // 3)
+                    
+                    # inject unconditional
+                    k[source_batch_size:2 * source_batch_size] = (1 - current_weight) * k[source_batch_size:2 * source_batch_size] + current_weight * k[:source_batch_size]
+                    v[source_batch_size:2 * source_batch_size] = (1 - current_weight) * v[source_batch_size:2 * source_batch_size] + current_weight * v[:source_batch_size]
+                    
+                    
+                    
+                    # Blend K and V for subtle color/texture anchoring conditional
                     k[source_batch_size:] = (1 - current_weight) * k[source_batch_size:] + current_weight * k[:source_batch_size]
                     v[source_batch_size:] = (1 - current_weight) * v[source_batch_size:] + current_weight * v[:source_batch_size]
 
