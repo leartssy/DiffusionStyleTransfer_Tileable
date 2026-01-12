@@ -45,7 +45,7 @@ def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
 
 
 class PNP(nn.Module):
-    def __init__(self, pipe, config, textile_guidance_scale, pnp_attn_t=20, pnp_f_t=20): #textile guidance_scale for texTile
+    def __init__(self, pipe, config, pnp_attn_t=20, pnp_f_t=20): #textile guidance_scale for texTile
         super().__init__()
         self.config = config
         self.device = config.device
@@ -55,7 +55,7 @@ class PNP(nn.Module):
         #use custom Blip class instead
         self.pipe = pipe
         
-        self.textile_guidance_scale = textile_guidance_scale
+    
         self.pnp_attn_t = pnp_attn_t
         self.pnp_f_t = pnp_f_t
         #end custom class
@@ -89,7 +89,7 @@ class PNP(nn.Module):
         cond_image = load_img1(self,style_file, pro_size=self.config.pro_size, 
                                keep_aspect_ratio=self.config.keep_aspect_ratio)
         guidance_scale = self.config.guidance_scale #previously 7.5
-        textile_guidance = self.config.textile_guidance_scale
+        #textile_guidance = self.config.textile_guidance_scale
         is_tileable = self.config.is_tileable
         #previous code:num_inference_steps = 50
         num_inference_steps = self.config.ddim_steps
