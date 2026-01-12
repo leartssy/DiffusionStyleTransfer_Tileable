@@ -139,15 +139,17 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                 else:
                     source_batch_size = int(q.shape[0] // 3)
                     
-                    # inject unconditional
-                    k[source_batch_size:2 * source_batch_size] = (1 - current_weight) * k[source_batch_size:2 * source_batch_size] + current_weight * k[:source_batch_size]
-                    v[source_batch_size:2 * source_batch_size] = (1 - current_weight) * v[source_batch_size:2 * source_batch_size] + current_weight * v[:source_batch_size]
+                    # Define your slices clearly
+                    uncond_slice = slice(source_batch_size, 2 * source_batch_size)
+                    cond_slice   = slice(2 * source_batch_size, None)
+
+                    # 1. Inject into Unconditional stream
+                    k[uncond_slice] = (1 - current_weight) * k[uncond_slice] + current_weight * k[:source_batch_size]
+                    v[uncond_slice] = (1 - current_weight) * v[uncond_slice] + current_weight * v[:source_batch_size]
                     
-                    
-                    
-                    # Blend K and V for subtle color/texture anchoring conditional
-                    k[2 * source_batch_size:] = (1 - current_weight) * k[2*source_batch_size:] + current_weight * k[:source_batch_size]
-                    v[2 * source_batch_size:] = (1 - current_weight) * v[2*source_batch_size:] + current_weight * v[:source_batch_size]
+                    # 2. Inject into Conditional stream
+                    k[cond_slice] = (1 - current_weight) * k[cond_slice] + current_weight * k[:source_batch_size]
+                    v[cond_slice] = (1 - current_weight) * v[cond_slice] + current_weight * v[:source_batch_size]
 
             q = self.head_to_batch_dim(q)
             k = self.head_to_batch_dim(k)
