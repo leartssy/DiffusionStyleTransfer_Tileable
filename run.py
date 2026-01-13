@@ -25,6 +25,7 @@ from pnp_utils_style import *
 import torchvision.transforms as T
 from preprocess_style import get_timesteps, Preprocess
 from pnp_style import PNP, BLIP, BLIP_With_Textile
+import time
 
 
 import torch.nn as nn
@@ -82,6 +83,18 @@ def patch_vae_circular(vae_model):
 
 def run(opt):
     
+    #timer
+    # Dictionary to store durations for each process
+    timings = {
+        "model_loading": [],
+        "latent_extraction": [],
+        "generation": [],
+        "upscaling": [],
+        "normal_maps": []
+    }
+
+    start_load = time.time()
+
     model_key = Path(opt.model_key)
     blip_diffusion_pipe = BLIP.from_pretrained(model_key, torch_dtype=torch.float16).to("cuda")
     
@@ -103,6 +116,9 @@ def run(opt):
     gen_normal = opt.gen_normal
     alpha = opt.alpha
     
+    
+
+
     extraction_path = "latents_reverse" if opt.extract_reverse else "latents_forward"
     base_save_path = os.path.join(opt.output_dir, extraction_path)
     os.makedirs(base_save_path, exist_ok=True)
@@ -119,6 +135,9 @@ def run(opt):
     model = Preprocess(blip_diffusion_pipe, opt.device, scheduler=scheduler, sd_version=opt.sd_version, hf_key=None)
     print("[INFO] Preprocess model initialized once.")
 
+    #timer
+    timings["model_loading"].append(time.time() - start_load)
+    
     # Prepare timesteps once
     timesteps_to_save, _ = get_timesteps(
         scheduler, num_inference_steps=opt.ddpm_steps,
@@ -132,6 +151,9 @@ def run(opt):
     all_content_latents = []
     print("\n[STEP 1] Loading/Extracting Content Latents...")
     for content_file in content_path:
+
+        #timer
+        start_ext = time.time()
 
         if opt.keep_aspect_ratio:
             res_folder = get_resolution_folder(content_file, opt.pro_size, True)
@@ -192,6 +214,9 @@ def run(opt):
         if content_latents is not None:
             all_content_latents.append(content_latents)
 
+        #timer
+        timings["latent_extraction"].append(time.time() - start_ext)
+
 
     all_style_latents = []
     print("\n[STEP 2] Loading/Extracting Style Latents...")
@@ -199,7 +224,9 @@ def run(opt):
     num_style_steps = int(opt.ddpm_steps)
     
     for style_file in style_path:
-        
+        #timer
+        start_ext = time.time()
+
         res_name = get_resolution_folder(style_file, opt.pro_size, opt.keep_aspect_ratio)
         save_path = os.path.join(base_save_path, res_name, os.path.splitext(os.path.basename(style_file))[0])
         os.makedirs(save_path, exist_ok=True)
@@ -250,6 +277,9 @@ def run(opt):
 
         if style_latents is not None:
             all_style_latents.append(style_latents[:num_style_steps])
+
+        #timer
+        timings["latent_extraction"].append(time.time() - start_ext)
             
     print("\n[STEP 3] Running PNP Style Transfer...")
     #set scheduler for generation phase
@@ -267,7 +297,9 @@ def run(opt):
     for content_latents, content_file in zip(all_content_latents, content_path):
         for style_latents, style_file in zip(all_style_latents, style_path):
             print(f"Transferring style from {style_file.name} to {content_file.name}")
-            
+            #timer
+            start_gen = time.time()
+
             generated_images_list = pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
             generated_image_pil = generated_images_list[0]
             torch.cuda.empty_cache()
@@ -351,6 +383,9 @@ def run(opt):
                                    
                 newly_generated_paths.append(save_path)
                 print(f"Saved raw generated image to {save_path}")
+
+                #timer
+                timings["generation"].append(time.time() - start_gen)
     
     #upscaling
     is_preview = opt.is_preview
@@ -378,6 +413,9 @@ def run(opt):
         upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device).half()
         
         for img_path_str in newly_generated_paths:
+            #timer
+            start_upscale = time.time()
+
             img_path = Path(img_path_str)   
             print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
             image = Image.open(img_path).convert("RGB")
@@ -540,7 +578,8 @@ def run(opt):
             high_res_path = str(img_path)#.replace(".png", "_raw.png")
             upscaled_image.save(high_res_path)
             final_high_res_paths.append(high_res_path)
-            
+            #timer
+            timings["upscaling"].append(time.time() - start_upscale)
             print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
         # Cleanup
         del upscaler, processor
@@ -548,8 +587,10 @@ def run(opt):
 
     else:
         #preview mode
-        print("\n[INFO] Previw mode active: Skipping AI Upscaling.")
+        print("\n[INFO] Preview mode active: Skipping AI Upscaling.")
         final_high_res_paths = newly_generated_paths
+    
+    
     
     if gen_normal:
         #print("Enabling Marigold Pipe for Normal Generation...")
@@ -565,6 +606,9 @@ def run(opt):
 
         #normal map generation
         for img_path_str in final_high_res_paths:
+            #timer
+            start_norm = time.time()
+
             img_path = Path(img_path_str)
             input_img = Image.open(img_path).convert("RGB")
 
@@ -602,9 +646,25 @@ def run(opt):
             out_fn = f"{base_name}_normal.png"
             save_path = os.path.join(opt.output_dir, out_fn)
             final_normal.save(save_path)
+            #timer
+            timings["normal_maps"].append(time.time() - start_norm)
             print(f"Saved final blended image to {save_path}")
         #del marigold_pipe
         #torch.cuda.empty_cache()
+    #timer summary:
+
+    print("\n" + "="*30)
+    print("PERFORMANCE SUMMARY")
+    print("="*30)
+    
+    for key, values in timings.items():
+        if values:
+            avg = sum(values) / len(values)
+            individual_str = ", ".join([f"{v:.2f}s" for v in values])
+            print(f"{key.replace('_', ' ').title()}:")
+            print(f"  - Individual: [{individual_str}]")
+            print(f"  - Average:    {avg:.2f}s")
+    print("="*30)
             
             
 def transfer_color(source_image,target_image,intensity):
