@@ -353,196 +353,204 @@ def run(opt):
                 print(f"Saved raw generated image to {save_path}")
     
     #upscaling
-    
-    print(f"\n[CLEANUP]Cleanup for upscaling...")
-    #clean up
-    # Before loading Swin2SR
-    del blip_diffusion_pipe
-    del pnp
-    if 'model' in locals(): del model
-
-    import gc
-    gc.collect()
-    torch.cuda.empty_cache()
-    torch.cuda.ipc_collect() # Extra cleaning
+    is_preview = opt.is_preview
     final_high_res_paths = []
 
-    print(f"\n[STEP 2] AI Upscaling {len(newly_generated_paths)} images...")
-    from transformers import Swin2SRImageProcessor, Swin2SRForImageSuperResolution
-    #load upscaler once
-    model_id = "caidas/swin2sr-classical-sr-x4-64"
-    processor = Swin2SRImageProcessor.from_pretrained(model_id)
-    upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device).half()
-    
-    for img_path_str in newly_generated_paths:
-        img_path = Path(img_path_str)   
-        print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
-        image = Image.open(img_path).convert("RGB")
-        #option to keep aspect ratio
-        orig_w, orig_h = image.size
-        if opt.keep_aspect_ratio:
-                # Scale the largest dimension to out_size
-                if orig_w >= orig_h:
-                    target_w = opt.out_size
-                    target_h = int(orig_h * (opt.out_size / orig_w))
-                else:
-                    target_h = opt.out_size
-                    target_w = int(orig_w * (opt.out_size / orig_h))
-        else:
-                target_w, target_h = opt.out_size, opt.out_size
+    if not is_preview:
+        print(f"\n[CLEANUP]Cleanup for upscaling...")
+        #clean up
+        # Before loading Swin2SR
+        del blip_diffusion_pipe
+        del pnp
+        if 'model' in locals(): del model
+
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect() # Extra cleaning
+        final_high_res_paths = []
+
+        print(f"\n[STEP 2] AI Upscaling {len(newly_generated_paths)} images...")
+        from transformers import Swin2SRImageProcessor, Swin2SRForImageSuperResolution
+        #load upscaler once
+        model_id = "caidas/swin2sr-classical-sr-x4-64"
+        processor = Swin2SRImageProcessor.from_pretrained(model_id)
+        upscaler = Swin2SRForImageSuperResolution.from_pretrained(model_id).to(opt.device).half()
         
-        
-        upscale_pass = 0
-        #recursive upscaling with tiling
-        while image.size[0] < target_w or image.size[1] < target_h:
-            upscale_pass +=1
-            # Add a 32px mirror buffer so the AI never sees a 'hard edge'
-            pad = 32 
-            img_np = np.array(image)
-            padded_np = np.pad(img_np, ((pad, pad), (pad, pad), (0, 0)), mode='wrap')
-            # expanding by copying the edge is easiest:
-            proc_image = Image.fromarray(padded_np)
-            curr_w, curr_h = proc_image.size
-            print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
+        for img_path_str in newly_generated_paths:
+            img_path = Path(img_path_str)   
+            print(f"Upscaling (HF): {os.path.basename(img_path)}", flush=True)
+            image = Image.open(img_path).convert("RGB")
+            #option to keep aspect ratio
+            orig_w, orig_h = image.size
+            if opt.keep_aspect_ratio:
+                    # Scale the largest dimension to out_size
+                    if orig_w >= orig_h:
+                        target_w = opt.out_size
+                        target_h = int(orig_h * (opt.out_size / orig_w))
+                    else:
+                        target_h = opt.out_size
+                        target_w = int(orig_w * (opt.out_size / orig_h))
+            else:
+                    target_w, target_h = opt.out_size, opt.out_size
             
-            # Check if we actually need another 4x pass
-            # If we are already close to the target, we don't want a massive jump
-            if curr_w >= target_w and curr_h >= target_h:
-                break
-            #split into 2x2 grid =4
-            scale_factor = 4
-            new_w, new_h = curr_w * scale_factor, curr_h * scale_factor
-            stitched = Image.new("RGB", (new_w, new_h))
-            grid_size = 4
-            tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
-            overlap = 16
-
-
-            for row in range(grid_size):
-                for col in range(grid_size):
-                    #define crop area with overlap
-                    left = max(0, col * tile_w - overlap)
-                    top = max(0,row * tile_h - overlap)
-                    right = min(curr_w, (col + 1) * tile_w + overlap)
-                    bottom = min(curr_h, (row + 1) * tile_h + overlap)
-
-                    tile = proc_image.crop((left,top,right,bottom))
-
-                    # Prepare input
-                    inputs = processor(tile, return_tensors="pt").to(opt.device).to(torch.float16)
-                    
-                    # Inference
-                    with torch.no_grad():
-                        outputs = upscaler(**inputs)
-        
-                    # Post-process
-                    output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
-                    output_tensor = np.moveaxis(output_tensor, 0, -1)
-                    upscaled_tile = Image.fromarray((output_tensor * 255).astype(np.uint8))
-
-                    # How many pixels of overlap exist on the left/top of this specific tile?
-                    crop_left = (col * tile_w - left) * scale_factor
-                    crop_top = (row * tile_h - top) * scale_factor
-                    
-                    # The width/height we actually want to keep
-                    keep_w = tile_w * scale_factor
-                    keep_h = tile_h * scale_factor
-
-                    clean_upscaled_tile = upscaled_tile.crop((
-                        crop_left, 
-                        crop_top, 
-                        crop_left + keep_w, 
-                        crop_top + keep_h
-                    ))
-
-                    # 4. Paste into the final canvas using 4x coordinates
-                    paste_x = col * tile_w * scale_factor
-                    paste_y = row * tile_h * scale_factor
-                    #to hide seams only paste the non overlap center of tile, except for outer tiles
-
-                    stitched.paste(clean_upscaled_tile, (paste_x, paste_y))
-                    
-
-                    #clean VRAM after every tile
-                    del outputs, output_tensor
-                    torch.cuda.empty_cache()
-            # The pad also got upscaled by the scale_factor (4x)
-            final_pad = pad * scale_factor
-
-            # Crop the 'stitched' image to remove the buffer edges
-            image = stitched.crop((
-                final_pad, 
-                final_pad, 
-                stitched.width - final_pad, 
-                stitched.height - final_pad
-            ))
-            print(f"Pass {upscale_pass} finished. New Size: {image.size}")
-            if image.size[0] >= target_w and image.size[1] >= target_h:
-                break
-            if upscale_pass >= 2: break
-        
-        # scale to desired size
-        upscaled_image = image
-        # Swin2SR always outputs 4x. We resize its output to the user's specific target.
-        if upscaled_image.size != (target_w, target_h):
-            print(f"   > Adjusting size to {target_w}x{target_h}...")
-            upscaled_image = upscaled_image.resize((target_w, target_h), resample=Image.LANCZOS)
-        # reattach alpha
-        with Image.open(img_path).convert("RGBA") as original_rgba:
-            alpha = original_rgba.split()[-1]
-            # Check if alpha is actually used (not just solid white)
-            if alpha.getextrema() != (255, 255):
-                print("   > Refining Alpha channel to match RGB sharpness...", flush=True)
+            
+            upscale_pass = 0
+            #recursive upscaling with tiling
+            while image.size[0] < target_w or image.size[1] < target_h:
+                upscale_pass +=1
+                # Add a 32px mirror buffer so the AI never sees a 'hard edge'
+                pad = 32 
+                img_np = np.array(image)
+                padded_np = np.pad(img_np, ((pad, pad), (pad, pad), (0, 0)), mode='wrap')
+                # expanding by copying the edge is easiest:
+                proc_image = Image.fromarray(padded_np)
+                curr_w, curr_h = proc_image.size
+                print(f"Upscale Pass {upscale_pass} (Using 16-tile grid)")
                 
-                print("   > Fast resizing Alpha channel...")
-                refined_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
-                
-                # Optional: Sharpen the alpha to match AI sharpness
-                from PIL import ImageEnhance
-                enhancer = ImageEnhance.Sharpness(refined_alpha)
-                refined_alpha = enhancer.enhance(2.0) 
-                
-                upscaled_image.putalpha(refined_alpha)
-            else:
-                # If solid, just create a solid high-res alpha
-                upscaled_image.putalpha(Image.new("L", (target_w, target_h), 255))
-        if is_tileable:
-            print("Blending Image Seams...")
-            #integrate seam blending
-            #convert PIL image to cv2 format
-            im_np = np.array(upscaled_image.convert('RGB'))
-            #determine gap size
-            im_h, im_w , _ = im_np.shape
-            #if gas is <1: treat as fraction of height, else as pixelwidth
-            if opt.gap <1:
-                gap_px = int(min(im_h, im_w) * opt.gap)
-            else:
-                gap_px = int(opt.gap)
+                # Check if we actually need another 4x pass
+                # If we are already close to the target, we don't want a massive jump
+                if curr_w >= target_w and curr_h >= target_h:
+                    break
+                #split into 2x2 grid =4
+                scale_factor = 4
+                new_w, new_h = curr_w * scale_factor, curr_h * scale_factor
+                stitched = Image.new("RGB", (new_w, new_h))
+                grid_size = 4
+                tile_w, tile_h = curr_w // grid_size, curr_h // grid_size
+                overlap = 16
 
-            #store original image size
-            im_origin_size = (im_w, im_h)
-            #Apply the blending
-            final_im_blended = apply_seam_blending(
-                im_np,
-                gap_px,
-                opt.blurring,
-                opt.min_ratio,
-                im_origin_size=im_origin_size,
-                maintain_size=opt.maintain_size
-            )
-            #convert back to pil
-            final_im_blended = Image.fromarray(final_im_blended)
-            upscaled_image = final_im_blended
 
-        high_res_path = str(img_path)#.replace(".png", "_raw.png")
-        upscaled_image.save(high_res_path)
-        final_high_res_paths.append(high_res_path)
-        
-        print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
-    # Cleanup
-    del upscaler, processor
-    torch.cuda.empty_cache()
+                for row in range(grid_size):
+                    for col in range(grid_size):
+                        #define crop area with overlap
+                        left = max(0, col * tile_w - overlap)
+                        top = max(0,row * tile_h - overlap)
+                        right = min(curr_w, (col + 1) * tile_w + overlap)
+                        bottom = min(curr_h, (row + 1) * tile_h + overlap)
 
+                        tile = proc_image.crop((left,top,right,bottom))
+
+                        # Prepare input
+                        inputs = processor(tile, return_tensors="pt").to(opt.device).to(torch.float16)
+                        
+                        # Inference
+                        with torch.no_grad():
+                            outputs = upscaler(**inputs)
+            
+                        # Post-process
+                        output_tensor = outputs.reconstruction.data.squeeze().cpu().clamp(0, 1).numpy()
+                        output_tensor = np.moveaxis(output_tensor, 0, -1)
+                        upscaled_tile = Image.fromarray((output_tensor * 255).astype(np.uint8))
+
+                        # How many pixels of overlap exist on the left/top of this specific tile?
+                        crop_left = (col * tile_w - left) * scale_factor
+                        crop_top = (row * tile_h - top) * scale_factor
+                        
+                        # The width/height we actually want to keep
+                        keep_w = tile_w * scale_factor
+                        keep_h = tile_h * scale_factor
+
+                        clean_upscaled_tile = upscaled_tile.crop((
+                            crop_left, 
+                            crop_top, 
+                            crop_left + keep_w, 
+                            crop_top + keep_h
+                        ))
+
+                        # 4. Paste into the final canvas using 4x coordinates
+                        paste_x = col * tile_w * scale_factor
+                        paste_y = row * tile_h * scale_factor
+                        #to hide seams only paste the non overlap center of tile, except for outer tiles
+
+                        stitched.paste(clean_upscaled_tile, (paste_x, paste_y))
+                        
+
+                        #clean VRAM after every tile
+                        del outputs, output_tensor
+                        torch.cuda.empty_cache()
+                # The pad also got upscaled by the scale_factor (4x)
+                final_pad = pad * scale_factor
+
+                # Crop the 'stitched' image to remove the buffer edges
+                image = stitched.crop((
+                    final_pad, 
+                    final_pad, 
+                    stitched.width - final_pad, 
+                    stitched.height - final_pad
+                ))
+                print(f"Pass {upscale_pass} finished. New Size: {image.size}")
+                if image.size[0] >= target_w and image.size[1] >= target_h:
+                    break
+                if upscale_pass >= 2: break
+            
+            # scale to desired size
+            upscaled_image = image
+            # Swin2SR always outputs 4x. We resize its output to the user's specific target.
+            if upscaled_image.size != (target_w, target_h):
+                print(f"   > Adjusting size to {target_w}x{target_h}...")
+                upscaled_image = upscaled_image.resize((target_w, target_h), resample=Image.LANCZOS)
+            # reattach alpha
+            with Image.open(img_path).convert("RGBA") as original_rgba:
+                alpha = original_rgba.split()[-1]
+                # Check if alpha is actually used (not just solid white)
+                if alpha.getextrema() != (255, 255):
+                    print("   > Refining Alpha channel to match RGB sharpness...", flush=True)
+                    
+                    print("   > Fast resizing Alpha channel...")
+                    refined_alpha = alpha.resize((target_w, target_h), resample=Image.LANCZOS)
+                    
+                    # Optional: Sharpen the alpha to match AI sharpness
+                    from PIL import ImageEnhance
+                    enhancer = ImageEnhance.Sharpness(refined_alpha)
+                    refined_alpha = enhancer.enhance(2.0) 
+                    
+                    upscaled_image.putalpha(refined_alpha)
+                else:
+                    # If solid, just create a solid high-res alpha
+                    upscaled_image.putalpha(Image.new("L", (target_w, target_h), 255))
+            if is_tileable:
+                print("Blending Image Seams...")
+                #integrate seam blending
+                #convert PIL image to cv2 format
+                im_np = np.array(upscaled_image.convert('RGB'))
+                #determine gap size
+                im_h, im_w , _ = im_np.shape
+                #if gas is <1: treat as fraction of height, else as pixelwidth
+                if opt.gap <1:
+                    gap_px = int(min(im_h, im_w) * opt.gap)
+                else:
+                    gap_px = int(opt.gap)
+
+                #store original image size
+                im_origin_size = (im_w, im_h)
+                #Apply the blending
+                final_im_blended = apply_seam_blending(
+                    im_np,
+                    gap_px,
+                    opt.blurring,
+                    opt.min_ratio,
+                    im_origin_size=im_origin_size,
+                    maintain_size=opt.maintain_size
+                )
+                #convert back to pil
+                final_im_blended = Image.fromarray(final_im_blended)
+                upscaled_image = final_im_blended
+
+            high_res_path = str(img_path)#.replace(".png", "_raw.png")
+            upscaled_image.save(high_res_path)
+            final_high_res_paths.append(high_res_path)
+            
+            print(f"[DONE] Saved: {os.path.basename(high_res_path)}")
+        # Cleanup
+        del upscaler, processor
+        torch.cuda.empty_cache()
+
+    else:
+        #preview mode
+        print("\n[INFO] Previw mode active: Skipping AI Upscaling.")
+        final_high_res_paths = newly_generated_paths
+    
     if gen_normal:
         #print("Enabling Marigold Pipe for Normal Generation...")
         #from diffusers import MarigoldNormalsPipeline
@@ -884,6 +892,8 @@ if __name__ == "__main__":
     parser.add_argument('--pro_size',type=int, default=512,help="size of default output and the image being processed")
     parser.add_argument('--attention_weight',type=float, default=0.5,help="weight attention injection")
     parser.add_argument('--conv_weight',type=float, default=1.0,help="weight convolution injection")
+    parser.add_argument('--is_preview',type=str_to_bool, default=False,help="Preview mode")
+
 
     
 
