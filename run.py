@@ -83,7 +83,11 @@ def patch_vae_circular(vae_model):
 
 def run(opt):
     
-    #timer
+
+    import warnings
+    # Suppress the resume_download warning specifically
+    warnings.filterwarnings("ignore", category=FutureWarning, module="huggingface_hub")
+        #timer
     # Dictionary to store durations for each process
     timings = {
         "model_loading": [],
