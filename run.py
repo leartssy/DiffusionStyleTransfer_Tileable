@@ -244,7 +244,7 @@ def run(opt):
         
         if os.path.exists(aggregated_path):
             print(f"Loading aggregated latents for {style_file}...")
-            style_latents = torch.load(aggregated_path).to("cuda")
+            style_latents = torch.load(aggregated_path,weights_only=True).to("cuda")
 
         elif not os.path.exists(check_path):
             print(f"No available latents, start extraction for {style_file}")
