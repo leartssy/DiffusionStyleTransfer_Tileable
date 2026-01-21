@@ -177,7 +177,7 @@ def run(opt):
         # Try to load the single aggregated file first
         if os.path.exists(aggregated_path):
             print(f"Loading aggregated latents for {content_file}...")
-            content_latents = torch.load(aggregated_path).to("cuda")
+            content_latents = torch.load(aggregated_path,weights_only=True).to("cuda")
             
         elif not os.path.exists(check_path):
             # Extraction logic (if no files exist)
