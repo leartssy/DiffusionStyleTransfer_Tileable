@@ -202,7 +202,7 @@ def run(opt):
             for t in trange(opt.ddpm_steps, desc="Loading Content Steps"):
                 latents_path = os.path.join(save_path, f'noisy_latents_{t}.pt')
                 if os.path.exists(latents_path):
-                    content_latents_list.append(torch.load(latents_path))
+                    content_latents_list.append(torch.load(latents_path,weights_only=True))
                 else:
                     break # Stop if a file is missing
             
@@ -266,7 +266,7 @@ def run(opt):
             for t in trange(num_style_steps, desc="Loading Style Steps"):
                 latents_path = os.path.join(save_path, f'noisy_latents_{t}.pt')
                 if os.path.exists(latents_path):
-                    style_latents_list.append(torch.load(latents_path))
+                    style_latents_list.append(torch.load(latents_path,weights_only=True))
                 else:
                     break
             
