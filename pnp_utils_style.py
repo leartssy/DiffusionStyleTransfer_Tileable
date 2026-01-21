@@ -51,9 +51,9 @@ def load_or_aggregate_latents(save_path: Path, ddpm_steps: int, num_style_steps:
     aggregated_path = save_path / 'aggregated_latents.pt'
     
     # --- 1. Attempt Fast Load ---
-    #if aggregated_path.exists():
-        #print(f"Loading aggregated latents from {save_path.name} (FAST)")
-        #return torch.load(aggregated_path, map_location='cuda')
+    if aggregated_path.exists():
+        print(f"Loading aggregated latents from {save_path.name} (FAST)")
+        return torch.load(aggregated_path, map_location='cuda')
 
     # --- 2. Fallback to Slow Aggregation ---
     
