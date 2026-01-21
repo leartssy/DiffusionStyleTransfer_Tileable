@@ -172,10 +172,10 @@ def run(opt):
         aggregated_path = os.path.join(save_path, 'aggregated_latents.pt')
 
         content_latents = None
-        test =True
+        
         
         # Try to load the single aggregated file first
-        if os.path.exists(aggregated_path) and not test:
+        if os.path.exists(aggregated_path):
             print(f"Loading aggregated latents for {content_file}...")
             content_latents = torch.load(aggregated_path).to("cuda")
             
@@ -242,7 +242,7 @@ def run(opt):
 
         style_timesteps_to_save = timesteps_to_save[-num_style_steps:] if num_style_steps > 0 else []
         
-        if os.path.exists(aggregated_path) and not test:
+        if os.path.exists(aggregated_path):
             print(f"Loading aggregated latents for {style_file}...")
             style_latents = torch.load(aggregated_path).to("cuda")
 
