@@ -196,21 +196,25 @@ def run(opt):
             torch.save(content_latents.cpu(), aggregated_path)
 
         else:
+            import glob
             # Fallback to the slow, step-by-step loading (if individual files exist but no aggregate)
             print(f"Loading individual latents for {content_file} (Slow I/O)...")
+            latent_files = sorted(glob.glob(os.path.join(save_path, 'noisy_latents_*.pt')), 
+                      key=lambda x: int(os.path.basename(x).split('_')[-1].split('.')[0]))
+            
             content_latents_list = []
-            for t in trange(opt.ddpm_steps, desc="Loading Content Steps"):
-                latents_path = os.path.join(save_path, f'noisy_latents_{t}.pt')
-                if os.path.exists(latents_path):
-                    content_latents_list.append(torch.load(latents_path,weights_only=True))
-                else:
-                    break # Stop if a file is missing
+            for f_path in tqdm(latent_files, desc="Loading Steps"):
+                # Load the file directly from the discovered path
+                latent_step = torch.load(f_path, weights_only=True)
+                content_latents_list.append(latent_step)
             
             if content_latents_list:
+                # Concatenate the steps into one big tensor
                 content_latents = torch.cat(content_latents_list, dim=0).to("cuda")
+                print(f"Successfully loaded {len(content_latents_list)} steps for content.")
             else:
-                print(f"Warning: Could not load any latents for {content_file}.")
-                continue # Skip this content file
+                print(f"Warning: No 'noisy_latents_*.pt' files found in {save_path}.")
+                continue
 
         if content_latents is not None:
             all_content_latents.append(content_latents)
@@ -261,19 +265,28 @@ def run(opt):
         else:
             # Fallback to the slow, step-by-step loading
             print(f"Loading individual latents for {style_file} (Slow I/O)...")
+            import glob
+            # Fallback to the slow, step-by-step loading (discovery mode)
+            print(f"Loading individual latents for {style_file} (Slow I/O discovery)...")
+            
+            # 1. Find all available latents and sort them numerically
+            latent_files = sorted(glob.glob(os.path.join(save_path, 'noisy_latents_*.pt')), 
+                                  key=lambda x: int(os.path.basename(x).split('_')[-1].split('.')[0]))
+            
+            # 2. Only take the number of steps required by the alpha threshold
+            latent_files = latent_files[:num_style_steps]
             style_latents_list = []
             # Note: Style latents only load up to the alpha threshold 
-            for t in trange(num_style_steps, desc="Loading Style Steps"):
-                latents_path = os.path.join(save_path, f'noisy_latents_{t}.pt')
-                if os.path.exists(latents_path):
-                    style_latents_list.append(torch.load(latents_path,weights_only=True))
-                else:
-                    break
+            for f_path in tqdm(latent_files, desc="Loading Style Steps"):
+                # weights_only=True avoids the security warning
+                latent_step = torch.load(f_path, weights_only=True)
+                style_latents_list.append(latent_step)
             
             if style_latents_list:
                 style_latents = torch.cat(style_latents_list, dim=0).to("cuda")
+                print(f"Successfully loaded {len(style_latents_list)} steps for style.")
             else:
-                print(f"Warning: Could not load any style latents for {style_file}.")
+                print(f"Warning: No 'noisy_latents_*.pt' files found in {save_path}.")
                 continue
 
         if style_latents is not None:
