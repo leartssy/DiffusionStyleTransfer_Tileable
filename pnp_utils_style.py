@@ -250,24 +250,19 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
                 if conv_weight >= 1.0:
-                        # inject unconditional
-                    hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
-                    # inject conditional
-                    hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
-
-                else:
-                    # Weighted blending logic
-                    w = conv_weight * (self.t / 1000.0)
-                    hidden_states[source_batch_size:] = (1 - w) * hidden_states[source_batch_size:] + w * hidden_states[:source_batch_size]
-
-            # Standard path for weight < 1.0
-            if self.conv_shortcut is not None:
-                input_tensor = self.conv_shortcut(input_tensor)
-
-            output_tensor = (input_tensor + hidden_states) / self.output_scale_factor
-            return output_tensor
-
-        return forward
+                    source_batch_size = input_tensor.shape[0] // 3
+                    
+                    # 1. Process ONLY the source slice for the whole block
+                    s_input = input_tensor[:source_batch_size]
+                    s_hidden = hidden_states[:source_batch_size]
+                    
+                    # 2. Apply shortcut to source only
+                    if self.conv_shortcut is not None:
+                        s_input = self.conv_shortcut(s_input)
+                    
+                    # 3. Combine and repeat the FINAL result
+                    out_src = (s_input + s_hidden) / self.output_scale_factor
+                    return out_src.repeat(3, 1, 1, 1)
 
     # conv_module = model.unet.up_blocks[1].resnets[1]
     # conv_module.forward = conv_forward(conv_module)
