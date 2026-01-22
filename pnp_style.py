@@ -327,9 +327,9 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
             if t in content_step:
-                source_lat = content_latents[i].unsqueeze(0).to(device).half()
+                source_lat = content_latents[i].unsqueeze(0)
             elif i < style_stop_index:
-                source_lat = style_latents[i].unsqueeze(0).to(device).half()
+                source_lat = style_latents[i].unsqueeze(0)
                 # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
@@ -344,7 +344,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 latent_model_input = torch.cat([source_lat] + [latents])
 
             # Ensure final input is half precision
-            latent_model_input = latent_model_input.half()
+            latent_model_input = torch.tensor(latent_model_input, dtype=torch.float16)
 
             noise_pred = self.unet(
                 latent_model_input,
