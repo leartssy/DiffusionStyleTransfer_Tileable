@@ -110,24 +110,23 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             encoder_hidden_states = encoder_hidden_states if is_cross else x
             source_batch_size = x.shape[0] // 3
 
-            # 1. Standard projection for the whole batch
+            # 1. Project the whole batch
             q = self.to_q(x)
-            k = self.to_k(encoder_hidden_states if is_cross else x)
+            k = self.to_k(x)
             v = self.to_v(encoder_hidden_states if is_cross else x)
 
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
-
-                # INJECTION PHASE: Hard inject Q and K into both Uncond and Style slots
-                # This matches your original 'if' branch
+                # INJECTION PHASE: Lock Layout
+                # Replace Q and K for slots 1 & 2 with slot 0 (Source)
                 q[source_batch_size:] = q[:source_batch_size].repeat(2, 1, 1)
                 k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
-                # Note: V remains unique for the style slot here, as per your original code
+                # Note: V stays unique, which is correct for color
             else:
-                # NON-INJECTION PHASE: Hard inject K and V into both slots
-                # This matches your original 'else' branch (the w=0.8 logic often gets ignored in research code)
+                # NON-INJECTION PHASE: Lock Color/Texture
+                # Replace K and V for slots 1 & 2 with slot 0 (Source)
+                # CRITICAL: Leave Q unique so the style can "seek" its own features
                 k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
                 v[source_batch_size:] = v[:source_batch_size].repeat(2, 1, 1)
-                # Note: Q remains unique for the style slot here
 
             q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
