@@ -216,11 +216,9 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 
                 #weigthed injection
                 # inject unconditional
-                #hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
-                hidden_states[source_batch_size:2 * source_batch_size] = (1 - conv_weight) * hidden_states[source_batch_size:2 * source_batch_size] + conv_weight * hidden_states[:source_batch_size]
+                hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
                 # inject conditional
-                hidden_states[2 * source_batch_size:] = (1 - conv_weight) * hidden_states[2 * source_batch_size:] + conv_weight * hidden_states[:source_batch_size]
-                #hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
+                hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
 
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
