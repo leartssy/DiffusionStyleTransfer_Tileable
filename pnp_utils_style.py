@@ -104,13 +104,6 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
         else:
             to_out = self.to_out
 
-        def sa_forward(self):
-        to_out = self.to_out
-        if type(to_out) is torch.nn.modules.container.ModuleList:
-            to_out = self.to_out[0]
-        else:
-            to_out = self.to_out
-
         def forward(x, encoder_hidden_states=None, attention_mask=None):
             batch_size, sequence_length, dim = x.shape
             h = self.heads
