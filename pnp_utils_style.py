@@ -108,7 +108,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             
             is_cross = encoder_hidden_states is not None
             encoder_hidden_states = encoder_hidden_states if is_cross else x
-
+            source_batch_size = x.shape[0] // 3
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
 
                 # FAST: Project Q and K for source only and repeat (Locks Structure)
