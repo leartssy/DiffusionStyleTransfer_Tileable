@@ -121,7 +121,8 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     source_batch_size = int(q.shape[0] // 2)
 
                 if attention_weight >= 1.0:
-                    # 1. Process ONLY the source half (saves 50% compute)
+                    # 1. Process ONLY the source half
+                    # We must convert to head dim BEFORE calculating attention
                     q_s = self.head_to_batch_dim(q[:source_batch_size])
                     k_s = self.head_to_batch_dim(k[:source_batch_size])
                     v_s = self.head_to_batch_dim(v[:source_batch_size])
@@ -130,9 +131,13 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     attn = sim.softmax(dim=-1)
                     out_s = torch.einsum("b i j, b j d -> b i d", attn, v_s)
                     
-                    # 2. Duplicate the output for the target batch instead of recalculating
-                    out = out_s.repeat(2, 1, 1) 
-                    return to_out(self.batch_to_head_dim(out))
+                    # 2. Convert source back from head dim to standard batch dim
+                    out_s_merged = self.batch_to_head_dim(out_s)
+                    
+                    # 3. Repeat the FULLY PROCESSED source to the target slots
+                    # This ensures the batch dimension is exactly what the next layer expects
+                    out = out_s_merged.repeat(2, 1, 1) 
+                    return to_out(out)
 
                 else:
                     # Normal Blended logic for weight < 1.0
@@ -258,14 +263,12 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
                 if conv_weight >= 1.0:
-                    # Calculate only the source part for the shortcut and final sum
-                    if self.conv_shortcut is not None:
-                        input_tensor[:source_batch_size] = self.conv_shortcut(input_tensor[:source_batch_size])
+                    # Shortcut source only
+                    s_idx = slice(0, source_batch_size)
+                    inp_s = self.conv_shortcut(input_tensor[s_idx]) if self.conv_shortcut else input_tensor[s_idx]
                     
-                    # Compute source output
-                    out_src = (input_tensor[:source_batch_size] + hidden_states[:source_batch_size]) / self.output_scale_factor
-                    
-                    # Repeat for Uncond and Cond batches (Skips 2/3 of the math)
+                    out_src = (inp_s + hidden_states[s_idx]) / self.output_scale_factor
+                    # Return the repeated result immediately
                     return out_src.repeat(3, 1, 1, 1)
 
                 else:
