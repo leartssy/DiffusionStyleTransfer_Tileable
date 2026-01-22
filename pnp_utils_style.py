@@ -117,7 +117,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                 
 
             #newly added
-            decay_factor = self.t / 1000.0
+            decay_factor = (self.t / 1000.0) ** 0.5
             current_weight = attention_weight * decay_factor
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
@@ -127,53 +127,53 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     # blended attention injection
 
                     # inject unconditional
-                    q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
-                    k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
-                    #q[source_batch_size:2 * source_batch_size] = (1 - current_weight) * q[source_batch_size:2 * source_batch_size] + current_weight * q[:source_batch_size]
-                    #k[source_batch_size:2 * source_batch_size] = (1 - current_weight) * k[source_batch_size:2 * source_batch_size] + current_weight * k[:source_batch_size]
+                    #q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
+                    #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
+                    q[source_batch_size:2 * source_batch_size] = (1 - current_weight) * q[source_batch_size:2 * source_batch_size] + current_weight * q[:source_batch_size]
+                    k[source_batch_size:2 * source_batch_size] = (1 - current_weight) * k[source_batch_size:2 * source_batch_size] + current_weight * k[:source_batch_size]
                     # inject conditional
-                    #q[2 * source_batch_size:] = (1 - current_weight) * q[2 * source_batch_size:] +current_weight * q[:source_batch_size]
-                    #k[2 * source_batch_size:] = (1 - current_weight) * k[2 * source_batch_size:] + current_weight * k[:source_batch_size]
-                    q[2 * source_batch_size:] = q[:source_batch_size] 
-                    k[2 * source_batch_size:] = k[:source_batch_size]
-                #else:
-                    #source_batch_size = int(q.shape[0] // 3)
+                    q[2 * source_batch_size:] = (1 - current_weight) * q[2 * source_batch_size:] +current_weight * q[:source_batch_size]
+                    k[2 * source_batch_size:] = (1 - current_weight) * k[2 * source_batch_size:] + current_weight * k[:source_batch_size]
+                    #q[2 * source_batch_size:] = q[:source_batch_size] 
+                    #k[2 * source_batch_size:] = k[:source_batch_size]
+                else:
+                    source_batch_size = int(q.shape[0] // 3)
                     
                     # Define your slices clearly
-                    #uncond_slice = slice(source_batch_size, 2 * source_batch_size)
-                    #cond_slice   = slice(2 * source_batch_size, None)
+                    uncond_slice = slice(source_batch_size, 2 * source_batch_size)
+                    cond_slice   = slice(2 * source_batch_size, None)
 
                     # 1. Inject into Unconditional stream
-                    #k[uncond_slice] = (1 - current_weight) * k[uncond_slice] + current_weight * k[:source_batch_size]
-                    #v[uncond_slice] = (1 - current_weight) * v[uncond_slice] + current_weight * v[:source_batch_size]
+                    k[uncond_slice] = (1 - current_weight) * k[uncond_slice] + current_weight * k[:source_batch_size]
+                    v[uncond_slice] = (1 - current_weight) * v[uncond_slice] + current_weight * v[:source_batch_size]
                     
                     # 2. Inject into Conditional stream
-                    #k[cond_slice] = (1 - current_weight) * k[cond_slice] + current_weight * k[:source_batch_size]
-                    #v[cond_slice] = (1 - current_weight) * v[cond_slice] + current_weight * v[:source_batch_size]
+                    k[cond_slice] = (1 - current_weight) * k[cond_slice] + current_weight * k[:source_batch_size]
+                    v[cond_slice] = (1 - current_weight) * v[cond_slice] + current_weight * v[:source_batch_size]
 
-            #q = self.head_to_batch_dim(q)
-            #k = self.head_to_batch_dim(k)
-            #v = self.head_to_batch_dim(v)
+            q = self.head_to_batch_dim(q)
+            k = self.head_to_batch_dim(k)
+            v = self.head_to_batch_dim(v)
 
 
-            else :
+            #else :
                 
-                v = self.to_v(encoder_hidden_states)
-                w = 0.8
-                source_batch_size = int(q.shape[0] // 3)
-                第一部分content第二部分无条件的第三部分有条件的
+                #v = self.to_v(encoder_hidden_states)
+                #w = 0.8
+                #source_batch_size = int(q.shape[0] // 3)
+                #第一部分content第二部分无条件的第三部分有条件的
                 # inject unconditional
-                k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
-                v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
+                #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
+                #v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
                 
                 
                 # inject conditional
-                k[2 * source_batch_size:] = k[:source_batch_size]
-                v[2 * source_batch_size:] = v[:source_batch_size]
+                #k[2 * source_batch_size:] = k[:source_batch_size]
+               # v[2 * source_batch_size:] = v[:source_batch_size]
 
-                q = self.head_to_batch_dim(q)
-                k = self.head_to_batch_dim(k)
-                v = self.head_to_batch_dim(v)
+                #q = self.head_to_batch_dim(q)
+                #k = self.head_to_batch_dim(k)
+                #v = self.head_to_batch_dim(v)
 
             
             sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
