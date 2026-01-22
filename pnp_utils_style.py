@@ -97,8 +97,6 @@ def load_source_latents_t(t, latents_path):
     return latents
 
 def register_attention_control_efficient(model, injection_schedule, attention_weight=1.0):
-    
-    
     def sa_forward(self):
         to_out = self.to_out
         if type(to_out) is torch.nn.modules.container.ModuleList:
@@ -116,86 +114,79 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             q = self.to_q(x)
             k = self.to_k(encoder_hidden_states)
             v = self.to_v(encoder_hidden_states)
-                
 
-            #newly added
-            decay_factor = (self.t / 1000.0)
-            current_weight = attention_weight * decay_factor
-
-            # Helper function for rescaling inside the forward pass
+            # Helper for feature rescaling (Contrast Fix)
             def rescale_features(target, blended):
-                # Calculate the standard deviation of the original target features
                 target_std = target.std(dim=-1, keepdim=True)
-                # Rescale blended features to match the original energy
                 return blended * (target_std / (blended.std(dim=-1, keepdim=True) + 1e-6))
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
                 if self.t in self.injection_schedule or self.t == 1000:
                     source_batch_size = int(q.shape[0] // 2)
-                    
-                    # 1. Unconditional Stream Injection
-                    uncond_q = q[source_batch_size:2 * source_batch_size]
-                    uncond_k = k[source_batch_size:2 * source_batch_size]
-                    
-                    blended_q = (1 - current_weight) * uncond_q + current_weight * q[:source_batch_size]
-                    blended_k = (1 - current_weight) * uncond_k + current_weight * k[:source_batch_size]
-                    
-                    # Apply Rescaling to bring back contrast
-                    q[source_batch_size:2 * source_batch_size] = rescale_features(uncond_q, blended_q)
-                    k[source_batch_size:2 * source_batch_size] = rescale_features(uncond_k, blended_k)
 
-                    # 2. Conditional Stream Injection
-                    cond_q = q[2 * source_batch_size:]
-                    cond_k = k[2 * source_batch_size:]
-                    
-                    blended_q_cond = (1 - current_weight) * cond_q + current_weight * q[:source_batch_size]
-                    blended_k_cond = (1 - current_weight) * cond_k + current_weight * k[:source_batch_size]
-                    
-                    # Apply Rescaling to bring back contrast
-                    q[2 * source_batch_size:] = rescale_features(cond_q, blended_q_cond)
-                    k[2 * source_batch_size:] = rescale_features(cond_k, blended_k_cond)
-                
-                else:
-                    source_batch_size = int(q.shape[0] // 3)
-                    uncond_slice = slice(source_batch_size, 2 * source_batch_size)
-                    cond_slice   = slice(2 * source_batch_size, None)
-
-                    # Fallback injection logic with rescaling
-                    # Unconditional
-                    target_k_uncond = k[uncond_slice]
-                    target_v_uncond = v[uncond_slice]
-                    k[uncond_slice] = rescale_features(target_k_uncond, (1 - current_weight) * target_k_uncond + current_weight * k[:source_batch_size])
-                    v[uncond_slice] = rescale_features(target_v_uncond, (1 - current_weight) * target_v_uncond + current_weight * v[:source_batch_size])
-                    
-                    # Conditional
-                    target_k_cond = k[cond_slice]
-                    target_v_cond = v[cond_slice]
-                    k[cond_slice] = rescale_features(target_k_cond, (1 - current_weight) * target_k_cond + current_weight * k[:source_batch_size])
-                    v[cond_slice] = rescale_features(target_v_cond, (1 - current_weight) * target_v_cond + current_weight * v[:source_batch_size])
-
+                    if attention_weight >= 1.0:
+                        # Hard copy (Paper original logic)
+                        q[source_batch_size:] = q[:source_batch_size]
+                        k[source_batch_size:] = k[:source_batch_size]
+                    else:
+                        # Blended logic with time decay
+                        w = attention_weight * (self.t / 1000.0)
+                        
+                        # Apply to both Uncond and Cond parts of the batch
+                        target_q, target_k = q[source_batch_size:], k[source_batch_size:]
+                        
+                        blended_q = (1 - w) * target_q + w * q[:source_batch_size]
+                        blended_k = (1 - w) * target_k + w * k[:source_batch_size]
+                        
+                        q[source_batch_size:] = rescale_features(target_q, blended_q)
+                        k[source_batch_size:] = rescale_features(target_k, blended_k)
+            
+            # Convert to head dimension (Only once for speed!)
             q = self.head_to_batch_dim(q)
             k = self.head_to_batch_dim(k)
             v = self.head_to_batch_dim(v)
 
 
-            #else :
-                
-                #v = self.to_v(encoder_hidden_states)
-                #w = 0.8
-                #source_batch_size = int(q.shape[0] // 3)
-                #第一部分content第二部分无条件的第三部分有条件的
-                # inject unconditional
-                #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
-                #v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
-                
-                
-                # inject conditional
-                #k[2 * source_batch_size:] = k[:source_batch_size]
-               # v[2 * source_batch_size:] = v[:source_batch_size]
+                #old logic:
+                #if not is_cross and self.injection_schedule is not None and (
+                #        self.t in self.injection_schedule or self.t == 1000):
+                #    q = self.to_q(x)
+                #    k = self.to_k(encoder_hidden_states)
 
-                #q = self.head_to_batch_dim(q)
-                #k = self.head_to_batch_dim(k)
-                #v = self.head_to_batch_dim(v)
+                #    source_batch_size = int(q.shape[0] // 2)
+                    # inject unconditional
+                #    q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
+                #    k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
+                    # inject conditional
+                #    q[2 * source_batch_size:] = q[:source_batch_size] 
+                #    k[2 * source_batch_size:] = k[:source_batch_size]
+
+                #    q = self.head_to_batch_dim(q)
+                #    k = self.head_to_batch_dim(k)
+                #   v = self.to_v(encoder_hidden_states)
+                #   v = self.head_to_batch_dim(v)
+
+
+                #else :
+                #    q = self.to_q(x)
+                #   k = self.to_k(x)
+                #   v = self.to_v(x)
+                #   w = 0.8
+                #    source_batch_size = int(q.shape[0] // 3)
+                    #第一部分content第二部分无条件的第三部分有条件的
+                    # inject unconditional
+                #   k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
+                #   v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
+                    
+                    
+                    # inject conditional
+                #  k[2 * source_batch_size:] = k[:source_batch_size]
+                #   v[2 * source_batch_size:] = v[:source_batch_size]
+
+                #    q = self.head_to_batch_dim(q)
+                #    k = self.head_to_batch_dim(k)
+                #   v = self.head_to_batch_dim(v)
+
 
             
             sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
@@ -215,7 +206,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
 
         return forward
 
-    res_dict = {1: [1, 2], 2: [0, 1, 2], 3: [0, 1, 2]}  # we are injecting attention in blocks 4 - 11 of the decoder, so not in the first block of the lowest resolution
+    res_dict = {1: [1, 2], 2: [0, 1, 2], 3: [0, 1, 2]}  # injecting attention in blocks 4 - 11 of the decoder, so not in the first block of the lowest resolution
     for res in res_dict:
         for block in res_dict[res]:
             module = model.unet.up_blocks[res].attentions[block].transformer_blocks[0].attn1
@@ -262,13 +253,11 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
             if self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
-                #weigthed injection
-                # inject unconditional
-                #hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
-                hidden_states[source_batch_size:2 * source_batch_size] = (1 - conv_weight) * hidden_states[source_batch_size:2 * source_batch_size] + conv_weight * hidden_states[:source_batch_size]
-                # inject conditional
-                hidden_states[2 * source_batch_size:] = (1 - conv_weight) * hidden_states[2 * source_batch_size:] + conv_weight * hidden_states[:source_batch_size]
-                #hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
+                if conv_weight >= 1.0:
+                    hidden_states[source_batch_size:] = hidden_states[:source_batch_size]
+                else:
+                    w = conv_weight * (self.t / 1000.0)
+                    hidden_states[source_batch_size:] = (1 - w) * hidden_states[source_batch_size:] + w * hidden_states[:source_batch_size]
 
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
