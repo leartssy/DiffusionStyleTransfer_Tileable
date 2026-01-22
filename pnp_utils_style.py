@@ -206,61 +206,19 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
             is_injecting = self.injection_schedule is not None and (self.t in self.injection_schedule)
 
             if is_injecting:
-                # --- FAST PATH: Calculate only Source and Style slots ---
-                # We skip slot 1 (Unconditional) because it will be a copy of slot 0.
-                # indices [0] = source, [2] = style
-                idx = torch.tensor([0, 2], device=input_tensor.device)
-                
-                h = input_tensor[idx]
-                h = self.norm1(h)
-                h = self.nonlinearity(h)
-
-                if self.upsample is not None:
-                    h = self.upsample(h)
-                elif self.downsample is not None:
-                    h = self.downsample(h)
-
-                h = self.conv1(h)
-
-                if temb is not None:
-                    # temb is already handled correctly in your setup, 
-                    # we just take the projected version for slots 0 and 2
-                    t_p = self.time_emb_proj(self.nonlinearity(temb))[idx][:, :, None, None]
-                    if self.time_embedding_norm == "default":
-                        h = h + t_p
-                    elif self.time_embedding_norm == "scale_shift":
-                        scale, shift = torch.chunk(t_p, 2, dim=1)
-                        h = h * (1 + scale) + shift
-
-                h = self.norm2(h)
-                h = self.nonlinearity(h)
-                h = self.dropout(h)
-                h = self.conv2(h)
-
-                # --- RECONSTRUCT BATCH ---
-                # h[0] is source, h[1] is style. 
-                # We need: [Source, Source (for Uncond), Style]
-                h_src = h[0:1]
-                h_style = h[1:2]
-                
-                # Apply your blending logic to the style slot
-                w = conv_weight
-                h_style_blended = (1 - w) * h_style + w * h_src
-                
-                hidden_states = torch.cat([h_src, h_src, h_style_blended], dim=0)
-
-            else:
-                # --- STANDARD PATH (Slow) ---
+                # 1. To match original behavior exactly, we project the whole batch 
+                # (Source, Uncond, Style) to ensure all internal states are updated
                 hidden_states = self.norm1(input_tensor)
                 hidden_states = self.nonlinearity(hidden_states)
+                
                 if self.upsample is not None:
                     hidden_states = self.upsample(hidden_states)
                 elif self.downsample is not None:
                     hidden_states = self.downsample(hidden_states)
                 
                 hidden_states = self.conv1(hidden_states)
-                # ... (Include your standard temb/norm2/conv2 logic here) ...
 
+                # 2. Handle Time Embeddings
                 if temb is not None:
                     t_p = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
                     if self.time_embedding_norm == "default":
@@ -274,7 +232,36 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 hidden_states = self.dropout(hidden_states)
                 hidden_states = self.conv2(hidden_states)
 
-            # Skip Connection (Crucial for shape)
+                # 3. THE EXACT INJECTION: Hard replace Slots 1 & 2 with Slot 0
+                # Original script behavior: target_features = source_features
+                # No blending (1-w), just pure overwrite.
+                source_features = hidden_states[:source_batch_size]
+                hidden_states[source_batch_size:] = source_features.repeat(2, 1, 1, 1)
+
+            else:
+                # STANDARD PATH (When not in injection schedule)
+                hidden_states = self.norm1(input_tensor)
+                hidden_states = self.nonlinearity(hidden_states)
+                if self.upsample is not None:
+                    hidden_states = self.upsample(hidden_states)
+                elif self.downsample is not None:
+                    hidden_states = self.downsample(hidden_states)
+                
+                hidden_states = self.conv1(hidden_states)
+                if temb is not None:
+                    t_p = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
+                    if self.time_embedding_norm == "default":
+                        hidden_states = hidden_states + t_p
+                    elif self.time_embedding_norm == "scale_shift":
+                        scale, shift = torch.chunk(t_p, 2, dim=1)
+                        hidden_states = hidden_states * (1 + scale) + shift
+
+                hidden_states = self.norm2(hidden_states)
+                hidden_states = self.nonlinearity(hidden_states)
+                hidden_states = self.dropout(hidden_states)
+                hidden_states = self.conv2(hidden_states)
+
+            # Skip Connection (Crucial for shape preservation)
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
 
