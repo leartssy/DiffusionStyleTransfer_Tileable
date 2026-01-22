@@ -115,33 +115,37 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             k = self.to_k(encoder_hidden_states)
             v = self.to_v(encoder_hidden_states)
 
-            # Helper for feature rescaling (Contrast Fix)
-            def rescale_features(target, blended):
-                target_std = target.std(dim=-1, keepdim=True)
-                return blended * (target_std / (blended.std(dim=-1, keepdim=True) + 1e-6))
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
                 if self.t in self.injection_schedule or self.t == 1000:
                     source_batch_size = int(q.shape[0] // 2)
 
-                    if attention_weight >= 1.0:
-                        # Hard copy (Paper original logic)
-                        q[source_batch_size:] = q[:source_batch_size]
-                        k[source_batch_size:] = k[:source_batch_size]
-                    else:
-                        # Blended logic with time decay
-                        w = attention_weight * (self.t / 1000.0)
-                        
-                        # Apply to both Uncond and Cond parts of the batch
-                        target_q, target_k = q[source_batch_size:], k[source_batch_size:]
-                        
-                        blended_q = (1 - w) * target_q + w * q[:source_batch_size]
-                        blended_k = (1 - w) * target_k + w * k[:source_batch_size]
-                        
-                        q[source_batch_size:] = rescale_features(target_q, blended_q)
-                        k[source_batch_size:] = rescale_features(target_k, blended_k)
-            
-            # Convert to head dimension (Only once for speed!)
+                if attention_weight >= 1.0:
+                    # 1. Process ONLY the source half (saves 50% compute)
+                    q_s = self.head_to_batch_dim(q[:source_batch_size])
+                    k_s = self.head_to_batch_dim(k[:source_batch_size])
+                    v_s = self.head_to_batch_dim(v[:source_batch_size])
+
+                    sim = torch.einsum("b i d, b j d -> b i j", q_s, k_s) * self.scale
+                    attn = sim.softmax(dim=-1)
+                    out_s = torch.einsum("b i j, b j d -> b i d", attn, v_s)
+                    
+                    # 2. Duplicate the output for the target batch instead of recalculating
+                    out = out_s.repeat(2, 1, 1) 
+                    return to_out(self.batch_to_head_dim(out))
+
+                else:
+                    # Normal Blended logic for weight < 1.0
+                    w = attention_weight * (self.t / 1000.0)
+                    t_q, t_k = q[source_batch_size:], k[source_batch_size:]
+                    
+                    def rescale(target, blended):
+                        return blended * (target.std(dim=-1, keepdim=True) / (blended.std(dim=-1, keepdim=True) + 1e-6))
+
+                    q[source_batch_size:] = rescale(t_q, (1 - w) * t_q + w * q[:source_batch_size])
+                    k[source_batch_size:] = rescale(t_k, (1 - w) * t_k + w * k[:source_batch_size])
+
+            # --- STANDARD PATH (Runs if no injection or weight < 1.0) ---
             q = self.head_to_batch_dim(q)
             k = self.head_to_batch_dim(k)
             v = self.head_to_batch_dim(v)
@@ -254,16 +258,26 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
                 if conv_weight >= 1.0:
-                    hidden_states[source_batch_size:] = hidden_states[:source_batch_size]
+                    # Calculate only the source part for the shortcut and final sum
+                    if self.conv_shortcut is not None:
+                        input_tensor[:source_batch_size] = self.conv_shortcut(input_tensor[:source_batch_size])
+                    
+                    # Compute source output
+                    out_src = (input_tensor[:source_batch_size] + hidden_states[:source_batch_size]) / self.output_scale_factor
+                    
+                    # Repeat for Uncond and Cond batches (Skips 2/3 of the math)
+                    return out_src.repeat(3, 1, 1, 1)
+
                 else:
+                    # Weighted blending logic
                     w = conv_weight * (self.t / 1000.0)
                     hidden_states[source_batch_size:] = (1 - w) * hidden_states[source_batch_size:] + w * hidden_states[:source_batch_size]
 
+            # Standard path for weight < 1.0
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
 
             output_tensor = (input_tensor + hidden_states) / self.output_scale_factor
-
             return output_tensor
 
         return forward
