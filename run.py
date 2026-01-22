@@ -278,7 +278,7 @@ def run(opt):
                                   key=lambda x: int(os.path.basename(x).split('_')[-1].split('.')[0]))
             
             # 2. Only take the number of steps required by the alpha threshold
-            latent_files = latent_files[:num_style_steps]
+            latent_files = latent_files[:opt.ddpm_steps]
             style_latents_list = []
             # Note: Style latents only load up to the alpha threshold 
             for f_path in tqdm(latent_files, desc="Loading Style Steps"):
