@@ -121,8 +121,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     source_batch_size = int(q.shape[0] // 2)
 
                 if attention_weight >= 1.0:
-                    # 1. Process ONLY the source half
-                    # We must convert to head dim BEFORE calculating attention
+                    # 1. Process ONLY the source part
                     q_s = self.head_to_batch_dim(q[:source_batch_size])
                     k_s = self.head_to_batch_dim(k[:source_batch_size])
                     v_s = self.head_to_batch_dim(v[:source_batch_size])
@@ -131,12 +130,15 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     attn = sim.softmax(dim=-1)
                     out_s = torch.einsum("b i j, b j d -> b i d", attn, v_s)
                     
-                    # 2. Convert source back from head dim to standard batch dim
+                    # 2. Convert source back to standard batch dim
                     out_s_merged = self.batch_to_head_dim(out_s)
                     
-                    # 3. Repeat the FULLY PROCESSED source to the target slots
-                    # This ensures the batch dimension is exactly what the next layer expects
-                    out = out_s_merged.repeat(2, 1, 1) 
+                    # 3. CRITICAL FIX: Repeat to match the TOTAL batch size (3)
+                    # This ensures it matches the original 'hidden_states' for the skip connection
+                    total_batch_size = q.shape[0] 
+                    repeat_factor = total_batch_size // source_batch_size
+                    
+                    out = out_s_merged.repeat(repeat_factor, 1, 1) 
                     return to_out(out)
 
                 else:
