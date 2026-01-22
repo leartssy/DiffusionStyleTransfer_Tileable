@@ -121,25 +121,10 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     source_batch_size = int(q.shape[0] // 2)
 
                 if attention_weight >= 1.0:
-                    # 1. Process ONLY the source part
-                    q_s = self.head_to_batch_dim(q[:source_batch_size])
-                    k_s = self.head_to_batch_dim(k[:source_batch_size])
-                    v_s = self.head_to_batch_dim(v[:source_batch_size])
-
-                    sim = torch.einsum("b i d, b j d -> b i j", q_s, k_s) * self.scale
-                    attn = sim.softmax(dim=-1)
-                    out_s = torch.einsum("b i j, b j d -> b i d", attn, v_s)
-                    
-                    # 2. Convert source back to standard batch dim
-                    out_s_merged = self.batch_to_head_dim(out_s)
-                    
-                    # 3. CRITICAL FIX: Repeat to match the TOTAL batch size (3)
-                    # This ensures it matches the original 'hidden_states' for the skip connection
-                    total_batch_size = q.shape[0] 
-                    repeat_factor = total_batch_size // source_batch_size
-                    
-                    out = out_s_merged.repeat(repeat_factor, 1, 1) 
-                    return to_out(out)
+                    # Overwrite input with source once. 
+                    # All subsequent linear layers (to_q, to_k, to_v) run on identical data.
+                    source_batch_size = x.shape[0] // 3
+                    x = x[:source_batch_size].repeat(3, 1, 1)
 
                 else:
                     # Normal Blended logic for weight < 1.0
@@ -152,10 +137,10 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                     q[source_batch_size:] = rescale(t_q, (1 - w) * t_q + w * q[:source_batch_size])
                     k[source_batch_size:] = rescale(t_k, (1 - w) * t_k + w * k[:source_batch_size])
 
-            # --- STANDARD PATH (Runs if no injection or weight < 1.0) ---
-            q = self.head_to_batch_dim(q)
-            k = self.head_to_batch_dim(k)
-            v = self.head_to_batch_dim(v)
+            
+            q, k, v = self.to_q(x), self.to_k(encoder_hidden_states if is_cross else x), self.to_v(encoder_hidden_states if is_cross else x)
+            
+            q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
 
                 #old logic:
@@ -265,13 +250,11 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
                 if conv_weight >= 1.0:
-                    # Shortcut source only
-                    s_idx = slice(0, source_batch_size)
-                    inp_s = self.conv_shortcut(input_tensor[s_idx]) if self.conv_shortcut else input_tensor[s_idx]
-                    
-                    out_src = (inp_s + hidden_states[s_idx]) / self.output_scale_factor
-                    # Return the repeated result immediately
-                    return out_src.repeat(3, 1, 1, 1)
+                    source_batch_size = input_tensor.shape[0] // 3
+                    # Process ONLY the first third of the batch
+                    input_tensor = input_tensor[:source_batch_size].repeat(3, 1, 1, 1)
+                    if temb is not None:
+                        temb = temb[:source_batch_size].repeat(3, 1)
 
                 else:
                     # Weighted blending logic
