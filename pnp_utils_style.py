@@ -108,24 +108,20 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             
             is_cross = encoder_hidden_states is not None
             encoder_hidden_states = encoder_hidden_states if is_cross else x
-            source_batch_size = x.shape[0] // 3
 
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
-                    
-                # Instead of projecting full batch then overwriting, 
-                # we project ONLY the source and repeat.
+
+                # FAST: Project Q and K for source only and repeat (Locks Structure)
                 q = self.to_q(x[:source_batch_size]).repeat(3, 1, 1)
                 k = self.to_k(x[:source_batch_size]).repeat(3, 1, 1)
-                v = self.to_v(x[:source_batch_size]).repeat(3, 1, 1) # Must repeat V here too
                 
+                # SLOW: Project V for the WHOLE batch (Allows Color Freedom)
+                v = self.to_v(x) 
             else:
+                # Standard non-injection path
                 q = self.to_q(x)
                 k = self.to_k(x)
                 v = self.to_v(x)
-                
-                # This mirrors your 'else' block injection logic (k and v overwrite)
-                k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
-                v[source_batch_size:] = v[:source_batch_size].repeat(2, 1, 1)
 
             q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
