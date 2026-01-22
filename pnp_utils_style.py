@@ -110,28 +110,22 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             encoder_hidden_states = encoder_hidden_states if is_cross else x
             source_batch_size = x.shape[0] // 3
             
+            q = self.to_q(x)
 
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
                 source_batch_size = x.shape[0] // 2
                     
                 # Instead of projecting full batch then overwriting, 
                 # we project ONLY the source and repeat.
-                q = self.to_q(x[:source_batch_size]).repeat(3, 1, 1)
                 k = self.to_k(x[:source_batch_size]).repeat(3, 1, 1)
                 v = self.to_v(x[:source_batch_size]).repeat(3, 1, 1) # Must repeat V here too
                 
-                q, k, v = map(self.head_to_batch_dim, (q, k, v))
-
             else:
-                q = self.to_q(x)
-                k = self.to_k(x)
-                v = self.to_v(x)
-                
-                # This mirrors your 'else' block injection logic (k and v overwrite)
-                k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
-                v[source_batch_size:] = v[:source_batch_size].repeat(2, 1, 1)
+                # Standard path for non-injection steps
+                k = self.to_k(encoder_hidden_states if is_cross else x)
+                v = self.to_v(encoder_hidden_states if is_cross else x)
 
-                q, k, v = map(self.head_to_batch_dim, (q, k, v))
+            q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
                 #old logic:
                 #if not is_cross and self.injection_schedule is not None and (
@@ -177,11 +171,11 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             
             sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
 
-            #if attention_mask is not None:
-                #attention_mask = attention_mask.reshape(batch_size, -1)
-                #max_neg_value = -torch.finfo(sim.dtype).max
-                #attention_mask = attention_mask[:, None, :].repeat(h, 1, 1)
-                #sim.masked_fill_(~attention_mask, max_neg_value)
+            if attention_mask is not None:
+                attention_mask = attention_mask.reshape(batch_size, -1)
+                max_neg_value = -torch.finfo(sim.dtype).max
+                attention_mask = attention_mask[:, None, :].repeat(h, 1, 1)
+                sim.masked_fill_(~attention_mask, max_neg_value)
 
             # attention, what we cannot get enough of
             attn = sim.softmax(dim=-1)
