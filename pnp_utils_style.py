@@ -115,18 +115,27 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             k = self.to_k(x)
             v = self.to_v(encoder_hidden_states if is_cross else x)
 
+            w = attention_weight
+
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
-                # INJECTION PHASE: Lock Layout
-                # Replace Q and K for slots 1 & 2 with slot 0 (Source)
-                q[source_batch_size:] = q[:source_batch_size].repeat(2, 1, 1)
-                k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
-                # Note: V stays unique, which is correct for color
+                
+                # Slot 1 (Uncond): Hard copy for stability
+                q[source_batch_size:2*source_batch_size] = q[:source_batch_size]
+                k[source_batch_size:2*source_batch_size] = k[:source_batch_size]
+                
+                # Slot 2 (Style): Weighted Blend
+                q[2*source_batch_size:] = (1 - w) * q[2*source_batch_size:] + w * q[:source_batch_size]
+                k[2*source_batch_size:] = (1 - w) * k[2*source_batch_size:] + w * k[:source_batch_size]
             else:
-                # NON-INJECTION PHASE: Lock Color/Texture
-                # Replace K and V for slots 1 & 2 with slot 0 (Source)
-                # CRITICAL: Leave Q unique so the style can "seek" its own features
-                k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
-                v[source_batch_size:] = v[:source_batch_size].repeat(2, 1, 1)
+                # --- NON-INJECTION PHASE (Color/Texture) ---
+                # Slot 1 (Uncond): Hard copy
+                k[source_batch_size:2*source_batch_size] = k[:source_batch_size]
+                v[source_batch_size:2*source_batch_size] = v[:source_batch_size]
+                
+                # Slot 2 (Style): Weighted Blend
+                # Keeping Q unique here (no blend) is what allows color transfer
+                k[2*source_batch_size:] = (1 - w) * k[2*source_batch_size:] + w * k[:source_batch_size]
+                v[2*source_batch_size:] = (1 - w) * v[2*source_batch_size:] + w * v[:source_batch_size]
 
             q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
