@@ -209,7 +209,7 @@ class BLIP(BlipDiffusionPipeline):
             else:
                 style_lat = style_latents[t].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
-            latent_model_input = torch.tensor(latent_model_input, dtype=torch.float16)
+            latent_model_input = latent_model_input.to(dtype=torch.float16,device='cuda')
 
             noise_pred = self.unet(
                 latent_model_input,
