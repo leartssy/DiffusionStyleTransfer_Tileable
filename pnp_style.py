@@ -204,10 +204,10 @@ class BLIP(BlipDiffusionPipeline):
             do_classifier_free_guidance = guidance_scale > 1.0
             
             if t in content_step:
-                content_lat = content_latents[t].unsqueeze(0)
+                content_lat = content_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([content_lat] + [latents] * 2 ) if do_classifier_free_guidance else latents
             else:
-                style_lat = style_latents[t].unsqueeze(0)
+                style_lat = style_latents[i].unsqueeze(0)
                 latent_model_input = torch.cat([style_lat] + [latents] * 2) if do_classifier_free_guidance else latents
             latent_model_input = torch.tensor(latent_model_input, dtype=torch.float16)
 
