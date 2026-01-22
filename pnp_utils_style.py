@@ -250,11 +250,10 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
                 if conv_weight >= 1.0:
-                    source_batch_size = input_tensor.shape[0] // 3
-                    # Process ONLY the first third of the batch
-                    input_tensor = input_tensor[:source_batch_size].repeat(3, 1, 1, 1)
-                    if temb is not None:
-                        temb = temb[:source_batch_size].repeat(3, 1)
+                        # inject unconditional
+                    hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
+                    # inject conditional
+                    hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
 
                 else:
                     # Weighted blending logic
