@@ -263,6 +263,16 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                     # 3. Combine and repeat the FINAL result
                     out_src = (s_input + s_hidden) / self.output_scale_factor
                     return out_src.repeat(3, 1, 1, 1)
+                else:
+                    w = conv_weight * (self.t / 1000.0)
+                    hidden_states[source_batch_size:] = (1 - w) * hidden_states[source_batch_size:] + w * hidden_states[:source_batch_size]
+
+            if self.conv_shortcut is not None:
+                input_tensor = self.conv_shortcut(input_tensor)
+
+            return (input_tensor + hidden_states) / self.output_scale_factor
+
+        return forward 
 
     # conv_module = model.unet.up_blocks[1].resnets[1]
     # conv_module.forward = conv_forward(conv_module)
