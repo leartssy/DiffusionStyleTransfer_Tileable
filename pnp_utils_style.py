@@ -97,6 +97,8 @@ def load_source_latents_t(t, latents_path):
     return latents
 
 def register_attention_control_efficient(model, injection_schedule, attention_weight=1.0):
+    
+    
     def sa_forward(self):
         to_out = self.to_out
         if type(to_out) is torch.nn.modules.container.ModuleList:
@@ -117,39 +119,59 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                 
 
             #newly added
-            decay_factor = (self.t / 1000.0) ** 0.5
+            decay_factor = (self.t / 1000.0)
             current_weight = attention_weight * decay_factor
+
+            # Helper function for rescaling inside the forward pass
+            def rescale_features(target, blended):
+                # Calculate the standard deviation of the original target features
+                target_std = target.std(dim=-1, keepdim=True)
+                # Rescale blended features to match the original energy
+                return blended * (target_std / (blended.std(dim=-1, keepdim=True) + 1e-6))
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
                 if self.t in self.injection_schedule or self.t == 1000:
-                    
                     source_batch_size = int(q.shape[0] // 2)
-                    # blended attention injection
+                    
+                    # 1. Unconditional Stream Injection
+                    uncond_q = q[source_batch_size:2 * source_batch_size]
+                    uncond_k = k[source_batch_size:2 * source_batch_size]
+                    
+                    blended_q = (1 - current_weight) * uncond_q + current_weight * q[:source_batch_size]
+                    blended_k = (1 - current_weight) * uncond_k + current_weight * k[:source_batch_size]
+                    
+                    # Apply Rescaling to bring back contrast
+                    q[source_batch_size:2 * source_batch_size] = rescale_features(uncond_q, blended_q)
+                    k[source_batch_size:2 * source_batch_size] = rescale_features(uncond_k, blended_k)
 
-                    # inject unconditional
-                    #q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
-                    #k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
-                    q[source_batch_size:2 * source_batch_size] = (1 - current_weight) * q[source_batch_size:2 * source_batch_size] + current_weight * q[:source_batch_size]
-                    k[source_batch_size:2 * source_batch_size] = (1 - current_weight) * k[source_batch_size:2 * source_batch_size] + current_weight * k[:source_batch_size]
-                    # inject conditional
-                    q[2 * source_batch_size:] = (1 - current_weight) * q[2 * source_batch_size:] +current_weight * q[:source_batch_size]
-                    k[2 * source_batch_size:] = (1 - current_weight) * k[2 * source_batch_size:] + current_weight * k[:source_batch_size]
-                    #q[2 * source_batch_size:] = q[:source_batch_size] 
-                    #k[2 * source_batch_size:] = k[:source_batch_size]
+                    # 2. Conditional Stream Injection
+                    cond_q = q[2 * source_batch_size:]
+                    cond_k = k[2 * source_batch_size:]
+                    
+                    blended_q_cond = (1 - current_weight) * cond_q + current_weight * q[:source_batch_size]
+                    blended_k_cond = (1 - current_weight) * cond_k + current_weight * k[:source_batch_size]
+                    
+                    # Apply Rescaling to bring back contrast
+                    q[2 * source_batch_size:] = rescale_features(cond_q, blended_q_cond)
+                    k[2 * source_batch_size:] = rescale_features(cond_k, blended_k_cond)
+                
                 else:
                     source_batch_size = int(q.shape[0] // 3)
-                    
-                    # Define your slices clearly
                     uncond_slice = slice(source_batch_size, 2 * source_batch_size)
                     cond_slice   = slice(2 * source_batch_size, None)
 
-                    # 1. Inject into Unconditional stream
-                    k[uncond_slice] = (1 - current_weight) * k[uncond_slice] + current_weight * k[:source_batch_size]
-                    v[uncond_slice] = (1 - current_weight) * v[uncond_slice] + current_weight * v[:source_batch_size]
+                    # Fallback injection logic with rescaling
+                    # Unconditional
+                    target_k_uncond = k[uncond_slice]
+                    target_v_uncond = v[uncond_slice]
+                    k[uncond_slice] = rescale_features(target_k_uncond, (1 - current_weight) * target_k_uncond + current_weight * k[:source_batch_size])
+                    v[uncond_slice] = rescale_features(target_v_uncond, (1 - current_weight) * target_v_uncond + current_weight * v[:source_batch_size])
                     
-                    # 2. Inject into Conditional stream
-                    k[cond_slice] = (1 - current_weight) * k[cond_slice] + current_weight * k[:source_batch_size]
-                    v[cond_slice] = (1 - current_weight) * v[cond_slice] + current_weight * v[:source_batch_size]
+                    # Conditional
+                    target_k_cond = k[cond_slice]
+                    target_v_cond = v[cond_slice]
+                    k[cond_slice] = rescale_features(target_k_cond, (1 - current_weight) * target_k_cond + current_weight * k[:source_batch_size])
+                    v[cond_slice] = rescale_features(target_v_cond, (1 - current_weight) * target_v_cond + current_weight * v[:source_batch_size])
 
             q = self.head_to_batch_dim(q)
             k = self.head_to_batch_dim(k)
