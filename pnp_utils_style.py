@@ -105,41 +105,27 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             to_out = self.to_out
 
         def forward(x, encoder_hidden_states=None, attention_mask=None):
-            batch_size, sequence_length, dim = x.shape
-            h = self.heads
-
             is_cross = encoder_hidden_states is not None
-            encoder_hidden_states = encoder_hidden_states if is_cross else x
+            source_batch_size = x.shape[0] // 3
             
             q = self.to_q(x)
-            k = self.to_k(encoder_hidden_states)
-            v = self.to_v(encoder_hidden_states)
-
+            k = self.to_k(encoder_hidden_states if is_cross else x)
+            v = self.to_v(encoder_hidden_states if is_cross else x)
 
             if not is_cross and self.injection_schedule is not None and attention_weight > 0:
                 if self.t in self.injection_schedule or self.t == 1000:
-                    source_batch_size = int(q.shape[0] // 2)
 
-                if attention_weight >= 1.0:
-                    # Overwrite input with source once. 
-                    # All subsequent linear layers (to_q, to_k, to_v) run on identical data.
-                    source_batch_size = x.shape[0] // 3
-                    x = x[:source_batch_size].repeat(3, 1, 1)
-
-                else:
-                    # Normal Blended logic for weight < 1.0
-                    w = attention_weight * (self.t / 1000.0)
-                    t_q, t_k = q[source_batch_size:], k[source_batch_size:]
-                    
-                    def rescale(target, blended):
-                        return blended * (target.std(dim=-1, keepdim=True) / (blended.std(dim=-1, keepdim=True) + 1e-6))
-
-                    q[source_batch_size:] = rescale(t_q, (1 - w) * t_q + w * q[:source_batch_size])
-                    k[source_batch_size:] = rescale(t_k, (1 - w) * t_k + w * k[:source_batch_size])
-
-            
-            q, k, v = self.to_q(x), self.to_k(encoder_hidden_states if is_cross else x), self.to_v(encoder_hidden_states if is_cross else x)
-            
+                    if attention_weight >= 1.0:
+                        k = k[:source_batch_size].repeat(3, 1, 1)
+                        v = v[:source_batch_size].repeat(3, 1, 1)
+                    else:
+                        # Blending logic for lower weights
+                        w = attention_weight * (self.t / 1000.0)
+                        k_src = k[:source_batch_size].repeat(3, 1, 1)
+                        v_src = v[:source_batch_size].repeat(3, 1, 1)
+                        k = (1 - w) * k + w * k_src
+                        v = (1 - w) * v + w * v_src
+   
             q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
 
@@ -187,11 +173,11 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             
             sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
 
-            if attention_mask is not None:
-                attention_mask = attention_mask.reshape(batch_size, -1)
-                max_neg_value = -torch.finfo(sim.dtype).max
-                attention_mask = attention_mask[:, None, :].repeat(h, 1, 1)
-                sim.masked_fill_(~attention_mask, max_neg_value)
+            #if attention_mask is not None:
+                #attention_mask = attention_mask.reshape(batch_size, -1)
+                #max_neg_value = -torch.finfo(sim.dtype).max
+                #attention_mask = attention_mask[:, None, :].repeat(h, 1, 1)
+                #sim.masked_fill_(~attention_mask, max_neg_value)
 
             # attention, what we cannot get enough of
             attn = sim.softmax(dim=-1)
@@ -213,15 +199,10 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
     def conv_forward(self):
         def forward(input_tensor, temb):
             hidden_states = input_tensor
-
             hidden_states = self.norm1(hidden_states)
             hidden_states = self.nonlinearity(hidden_states)
 
             if self.upsample is not None:
-                # upsample_nearest_nhwc fails with large batch sizes. see https://github.com/huggingface/diffusers/issues/984
-                if hidden_states.shape[0] >= 64:
-                    input_tensor = input_tensor.contiguous()
-                    hidden_states = hidden_states.contiguous()
                 input_tensor = self.upsample(input_tensor)
                 hidden_states = self.upsample(hidden_states)
             elif self.downsample is not None:
@@ -231,48 +212,40 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
             hidden_states = self.conv1(hidden_states)
 
             if temb is not None:
-                temb = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
-
-            if temb is not None and self.time_embedding_norm == "default":
-                hidden_states = hidden_states + temb
+                # Fixed temb repeat for dimensions
+                source_bs = input_tensor.shape[0] // 3
+                repeat_dims = [1] * temb.dim()
+                repeat_dims[0] = 3
+                temb_p = self.time_emb_proj(self.nonlinearity(temb))[:source_bs].repeat(*repeat_dims)[:, :, None, None]
+                
+                if self.time_embedding_norm == "default":
+                    hidden_states = hidden_states + temb_p
+                elif self.time_embedding_norm == "scale_shift":
+                    scale, shift = torch.chunk(temb_p, 2, dim=1)
+                    hidden_states = hidden_states * (1 + scale) + shift
 
             hidden_states = self.norm2(hidden_states)
-
-            if temb is not None and self.time_embedding_norm == "scale_shift":
-                scale, shift = torch.chunk(temb, 2, dim=1)
-                hidden_states = hidden_states * (1 + scale) + shift
-
             hidden_states = self.nonlinearity(hidden_states)
-
             hidden_states = self.dropout(hidden_states)
             hidden_states = self.conv2(hidden_states)
-            if self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
-                source_batch_size = int(hidden_states.shape[0] // 3)
+
+            # --- SELECTIVE INJECTION (The Style Fix) ---
+            if self.injection_schedule is not None and (self.t in self.injection_schedule):
+                source_batch_size = input_tensor.shape[0] // 3
                 
-                if conv_weight >= 1.0:
-                    source_batch_size = input_tensor.shape[0] // 3
-                    
-                    # 1. Process ONLY the source slice for the whole block
-                    s_input = input_tensor[:source_batch_size]
-                    s_hidden = hidden_states[:source_batch_size]
-                    
-                    # 2. Apply shortcut to source only
-                    if self.conv_shortcut is not None:
-                        s_input = self.conv_shortcut(s_input)
-                    
-                    # 3. Combine and repeat the FINAL result
-                    out_src = (s_input + s_hidden) / self.output_scale_factor
-                    return out_src.repeat(3, 1, 1, 1)
-                else:
-                    w = conv_weight * (self.t / 1000.0)
-                    hidden_states[source_batch_size:] = (1 - w) * hidden_states[source_batch_size:] + w * hidden_states[:source_batch_size]
+                # Slot 1: Unconditional (Full layout injection)
+                hidden_states[source_batch_size:2*source_batch_size] = hidden_states[:source_batch_size]
+                
+                # Slot 2: Conditional (Blend to keep colors)
+                w = conv_weight * 0.75 # Lower weight to preserve style
+                hidden_states[2*source_batch_size:] = (1 - w) * hidden_states[2*source_batch_size:] + w * hidden_states[:source_batch_size]
 
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
 
             return (input_tensor + hidden_states) / self.output_scale_factor
 
-        return forward 
+        return forward
 
     # conv_module = model.unet.up_blocks[1].resnets[1]
     # conv_module.forward = conv_forward(conv_module)
