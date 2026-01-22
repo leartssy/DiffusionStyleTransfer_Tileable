@@ -111,17 +111,24 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             source_batch_size = x.shape[0] // 3
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
 
-                # FAST: Project Q and K for source only and repeat (Locks Structure)
-                q = self.to_q(x[:source_batch_size]).repeat(3, 1, 1)
-                k = self.to_k(x[:source_batch_size]).repeat(3, 1, 1)
+                # 1. Project Q and K for everything (needed for blending)
+                q_all = self.to_q(x)
+                k_all = self.to_k(x)
                 
-                # SLOW: Project V for the WHOLE batch (Allows Color Freedom)
-                v = self.to_v(x) 
+                # 2. Hard Inject into Unconditional (Slot 1)
+                q_all[source_batch_size:2*source_batch_size] = q_all[:source_batch_size]
+                k_all[source_batch_size:2*source_batch_size] = k_all[:source_batch_size]
+                
+                # 3. BLEND Inject into Conditional (Slot 2)
+                # Lowering attention_weight here (e.g., 0.8) allows the style's own colors to flow
+                w = attention_weight
+                q_all[2*source_batch_size:] = (1 - w) * q_all[2*source_batch_size:] + w * q_all[:source_batch_size]
+                k_all[2*source_batch_size:] = (1 - w) * k_all[2*source_batch_size:] + w * k_all[:source_batch_size]
+                
+                q, k = q_all, k_all
+                v = self.to_v(x) # Keep V flexible for color
             else:
-                # Standard non-injection path
-                q = self.to_q(x)
-                k = self.to_k(x)
-                v = self.to_v(x)
+                q, k, v = self.to_q(x), self.to_k(x), self.to_v(x)
 
             q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
