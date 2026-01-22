@@ -344,7 +344,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 latent_model_input = torch.cat([source_lat] + [latents])
 
             # Ensure final input is half precision
-            latent_model_input = torch.tensor(latent_model_input, dtype=torch.float16)
+            latent_model_input = latent_model_input.to(dtype=torch.float16,device='cuda')
 
             noise_pred = self.unet(
                 latent_model_input,
