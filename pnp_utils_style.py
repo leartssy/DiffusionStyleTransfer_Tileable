@@ -113,7 +113,6 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             q = self.to_q(x)
 
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
-                source_batch_size = x.shape[0] // 2
                     
                 # Instead of projecting full batch then overwriting, 
                 # we project ONLY the source and repeat.
