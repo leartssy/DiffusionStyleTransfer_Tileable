@@ -238,7 +238,7 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 h_style = h[1:2]
                 
                 # Apply your blending logic to the style slot
-                w = conv_weight * 0.75
+                w = conv_weight
                 h_style_blended = (1 - w) * h_style + w * h_src
                 
                 hidden_states = torch.cat([h_src, h_src, h_style_blended], dim=0)
@@ -255,7 +255,20 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
                 hidden_states = self.conv1(hidden_states)
                 # ... (Include your standard temb/norm2/conv2 logic here) ...
 
-            # Final skip connection
+                if temb is not None:
+                    t_p = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
+                    if self.time_embedding_norm == "default":
+                        hidden_states = hidden_states + t_p
+                    elif self.time_embedding_norm == "scale_shift":
+                        scale, shift = torch.chunk(t_p, 2, dim=1)
+                        hidden_states = hidden_states * (1 + scale) + shift
+
+                hidden_states = self.norm2(hidden_states)
+                hidden_states = self.nonlinearity(hidden_states)
+                hidden_states = self.dropout(hidden_states)
+                hidden_states = self.conv2(hidden_states)
+
+            # Skip Connection (Crucial for shape)
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
 
@@ -263,17 +276,11 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
 
         return forward
 
-    # conv_module = model.unet.up_blocks[1].resnets[1]
-    # conv_module.forward = conv_forward(conv_module)
-    # setattr(conv_module, 'injection_schedule', injection_schedule)
-    
+    # Application logic
     res_dict = {1: [0, 1, 2], 2: [0, 1, 2]}
     for res in res_dict:
         for block in res_dict[res]:
-            conv_module = model.unet.up_blocks[res].resnets[block]
-    
-            conv_module.forward = conv_forward(conv_module)
-  
-            setattr(conv_module, 'injection_schedule', injection_schedule)
-
+            module = model.unet.up_blocks[res].resnets[block]
+            module.forward = conv_forward(module)
+            setattr(module, 'injection_schedule', injection_schedule)
         
