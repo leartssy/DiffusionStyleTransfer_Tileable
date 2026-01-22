@@ -105,29 +105,33 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             to_out = self.to_out
 
         def forward(x, encoder_hidden_states=None, attention_mask=None):
+            
             is_cross = encoder_hidden_states is not None
+            encoder_hidden_states = encoder_hidden_states if is_cross else x
             source_batch_size = x.shape[0] // 3
             
-            q = self.to_q(x)
-            k = self.to_k(encoder_hidden_states if is_cross else x)
-            v = self.to_v(encoder_hidden_states if is_cross else x)
 
-            if not is_cross and self.injection_schedule is not None and attention_weight > 0:
-                if self.t in self.injection_schedule or self.t == 1000:
+            if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
+                source_batch_size = x.shape[0] // 2
+                    
+                # Instead of projecting full batch then overwriting, 
+                # we project ONLY the source and repeat.
+                q = self.to_q(x[:source_batch_size]).repeat(3, 1, 1)
+                k = self.to_k(x[:source_batch_size]).repeat(3, 1, 1)
+                v = self.to_v(x[:source_batch_size]).repeat(3, 1, 1) # Must repeat V here too
+                
+                q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
-                    if attention_weight >= 1.0:
-                        k = k[:source_batch_size].repeat(3, 1, 1)
-                        v = v[:source_batch_size].repeat(3, 1, 1)
-                    else:
-                        # Blending logic for lower weights
-                        w = attention_weight * (self.t / 1000.0)
-                        k_src = k[:source_batch_size].repeat(3, 1, 1)
-                        v_src = v[:source_batch_size].repeat(3, 1, 1)
-                        k = (1 - w) * k + w * k_src
-                        v = (1 - w) * v + w * v_src
-   
-            q, k, v = map(self.head_to_batch_dim, (q, k, v))
+            else:
+                q = self.to_q(x)
+                k = self.to_k(x)
+                v = self.to_v(x)
+                
+                # This mirrors your 'else' block injection logic (k and v overwrite)
+                k[source_batch_size:] = k[:source_batch_size].repeat(2, 1, 1)
+                v[source_batch_size:] = v[:source_batch_size].repeat(2, 1, 1)
 
+                q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
                 #old logic:
                 #if not is_cross and self.injection_schedule is not None and (
