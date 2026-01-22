@@ -96,7 +96,7 @@ def load_source_latents_t(t, latents_path):
     latents = torch.load(latents_t_path)
     return latents
 
-def register_attention_control_efficient(model, injection_schedule, attention_weight=1.0):
+def register_attention_control_efficient(model, injection_schedule, is_attention=True):
     def sa_forward(self):
         to_out = self.to_out
         if type(to_out) is torch.nn.modules.container.ModuleList:
@@ -105,80 +105,69 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             to_out = self.to_out
 
         def forward(x, encoder_hidden_states=None, attention_mask=None):
-            
+            batch_size, sequence_length, dim = x.shape
+            h = self.heads
+
             is_cross = encoder_hidden_states is not None
             encoder_hidden_states = encoder_hidden_states if is_cross else x
-            source_batch_size = x.shape[0] // 3
+            if not is_cross and self.injection_schedule is not None and (
+                    self.t in self.injection_schedule or self.t == 1000):
+                q = self.to_q(x)
+                k = self.to_k(encoder_hidden_states)
 
-            # 1. Project the whole batch
-            q = self.to_q(x)
-            k = self.to_k(x)
-            v = self.to_v(encoder_hidden_states if is_cross else x)
+                source_batch_size = int(q.shape[0] // 2)
 
-            w = attention_weight
+                if is_attention:
 
-            if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
-                
-                # Slot 1 (Uncond): Hard copy for stability
-                q[source_batch_size:2*source_batch_size] = q[:source_batch_size]
-                k[source_batch_size:2*source_batch_size] = k[:source_batch_size]
-                
-                # Slot 2 (Style): Weighted Blend
-                q[2*source_batch_size:] = (1 - w) * q[2*source_batch_size:] + w * q[:source_batch_size]
-                k[2*source_batch_size:] = (1 - w) * k[2*source_batch_size:] + w * k[:source_batch_size]
-            else:
-                # --- NON-INJECTION PHASE (Color/Texture) ---
-                # Slot 1 (Uncond): Hard copy
-                k[source_batch_size:2*source_batch_size] = k[:source_batch_size]
-                v[source_batch_size:2*source_batch_size] = v[:source_batch_size]
-                
-                # Slot 2 (Style): Weighted Blend
-                # Keeping Q unique here (no blend) is what allows color transfer
-                k[2*source_batch_size:] = (1 - w) * k[2*source_batch_size:] + w * k[:source_batch_size]
-                v[2*source_batch_size:] = (1 - w) * v[2*source_batch_size:] + w * v[:source_batch_size]
-
-            q, k, v = map(self.head_to_batch_dim, (q, k, v))
-
-                #old logic:
-                #if not is_cross and self.injection_schedule is not None and (
-                #        self.t in self.injection_schedule or self.t == 1000):
-                #    q = self.to_q(x)
-                #    k = self.to_k(encoder_hidden_states)
-
-                #    source_batch_size = int(q.shape[0] // 2)
                     # inject unconditional
-                #    q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
-                #    k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
+                    q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
+                    k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
                     # inject conditional
-                #    q[2 * source_batch_size:] = q[:source_batch_size] 
-                #    k[2 * source_batch_size:] = k[:source_batch_size]
+                    q[2 * source_batch_size:] = q[:source_batch_size] 
+                    k[2 * source_batch_size:] = k[:source_batch_size]
 
-                #    q = self.head_to_batch_dim(q)
-                #    k = self.head_to_batch_dim(k)
-                #   v = self.to_v(encoder_hidden_states)
-                #   v = self.head_to_batch_dim(v)
+                    q = self.head_to_batch_dim(q)
+                    k = self.head_to_batch_dim(k)
+                    v = self.to_v(encoder_hidden_states)
+                    v = self.head_to_batch_dim(v)
+                else:
 
+                    q = self.head_to_batch_dim(q)
+                    k = self.head_to_batch_dim(k)
+                    v = self.to_v(encoder_hidden_states)
+                    v = self.head_to_batch_dim(v)
 
-                #else :
-                #    q = self.to_q(x)
-                #   k = self.to_k(x)
-                #   v = self.to_v(x)
-                #   w = 0.8
-                #    source_batch_size = int(q.shape[0] // 3)
+            else :
+                if is_attention:
+
+                    q = self.to_q(x)
+                    k = self.to_k(x)
+                    v = self.to_v(x)
+                    w = 0.8
+                    source_batch_size = int(q.shape[0] // 3)
                     #第一部分content第二部分无条件的第三部分有条件的
                     # inject unconditional
-                #   k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
-                #   v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
+                    k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
+                    v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
                     
                     
                     # inject conditional
-                #  k[2 * source_batch_size:] = k[:source_batch_size]
-                #   v[2 * source_batch_size:] = v[:source_batch_size]
+                    k[2 * source_batch_size:] = k[:source_batch_size]
+                    v[2 * source_batch_size:] = v[:source_batch_size]
 
-                #    q = self.head_to_batch_dim(q)
-                #    k = self.head_to_batch_dim(k)
-                #   v = self.head_to_batch_dim(v)
-
+                    q = self.head_to_batch_dim(q)
+                    k = self.head_to_batch_dim(k)
+                    v = self.head_to_batch_dim(v)
+                else:
+                    q = self.to_q(x)
+                    k = self.to_k(x)
+                    v = self.to_v(x)
+                    w = 0.8
+                    source_batch_size = int(q.shape[0] // 3)
+                    
+                    q = self.head_to_batch_dim(q)
+                    k = self.head_to_batch_dim(k)
+                    v = self.head_to_batch_dim(v)
 
             
             sim = torch.einsum("b i d, b j d -> b i j", q, k) * self.scale
@@ -198,7 +187,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
 
         return forward
 
-    res_dict = {1: [1, 2], 2: [0, 1, 2], 3: [0, 1, 2]}  # injecting attention in blocks 4 - 11 of the decoder, so not in the first block of the lowest resolution
+    res_dict = {1: [1, 2], 2: [0, 1, 2], 3: [0, 1, 2]}  # we are injecting attention in blocks 4 - 11 of the decoder, so not in the first block of the lowest resolution
     for res in res_dict:
         for block in res_dict[res]:
             module = model.unet.up_blocks[res].attentions[block].transformer_blocks[0].attn1
@@ -208,80 +197,69 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
 def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
     def conv_forward(self):
         def forward(input_tensor, temb):
-            source_batch_size = input_tensor.shape[0] // 3
-            
-            # Check if we are in the injection phase
-            is_injecting = self.injection_schedule is not None and (self.t in self.injection_schedule)
+            hidden_states = input_tensor
 
-            if is_injecting:
-                # 1. To match original behavior exactly, we project the whole batch 
-                # (Source, Uncond, Style) to ensure all internal states are updated
-                hidden_states = self.norm1(input_tensor)
-                hidden_states = self.nonlinearity(hidden_states)
+            hidden_states = self.norm1(hidden_states)
+            hidden_states = self.nonlinearity(hidden_states)
+
+            if self.upsample is not None:
+                # upsample_nearest_nhwc fails with large batch sizes. see https://github.com/huggingface/diffusers/issues/984
+                if hidden_states.shape[0] >= 64:
+                    input_tensor = input_tensor.contiguous()
+                    hidden_states = hidden_states.contiguous()
+                input_tensor = self.upsample(input_tensor)
+                hidden_states = self.upsample(hidden_states)
+            elif self.downsample is not None:
+                input_tensor = self.downsample(input_tensor)
+                hidden_states = self.downsample(hidden_states)
+
+            hidden_states = self.conv1(hidden_states)
+
+            if temb is not None:
+                temb = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
+
+            if temb is not None and self.time_embedding_norm == "default":
+                hidden_states = hidden_states + temb
+
+            hidden_states = self.norm2(hidden_states)
+
+            if temb is not None and self.time_embedding_norm == "scale_shift":
+                scale, shift = torch.chunk(temb, 2, dim=1)
+                hidden_states = hidden_states * (1 + scale) + shift
+
+            hidden_states = self.nonlinearity(hidden_states)
+
+            hidden_states = self.dropout(hidden_states)
+            hidden_states = self.conv2(hidden_states)
+            if self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
+                source_batch_size = int(hidden_states.shape[0] // 3)
                 
-                if self.upsample is not None:
-                    hidden_states = self.upsample(hidden_states)
-                elif self.downsample is not None:
-                    hidden_states = self.downsample(hidden_states)
-                
-                hidden_states = self.conv1(hidden_states)
+                #weigthed injection
+                # inject unconditional
+                hidden_states[source_batch_size:2 * source_batch_size] = hidden_states[:source_batch_size]
+                # inject conditional
+                hidden_states[2 * source_batch_size:] = hidden_states[:source_batch_size]
 
-                # 2. Handle Time Embeddings
-                if temb is not None:
-                    t_p = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
-                    if self.time_embedding_norm == "default":
-                        hidden_states = hidden_states + t_p
-                    elif self.time_embedding_norm == "scale_shift":
-                        scale, shift = torch.chunk(t_p, 2, dim=1)
-                        hidden_states = hidden_states * (1 + scale) + shift
-
-                hidden_states = self.norm2(hidden_states)
-                hidden_states = self.nonlinearity(hidden_states)
-                hidden_states = self.dropout(hidden_states)
-                hidden_states = self.conv2(hidden_states)
-
-                # 3. THE EXACT INJECTION: Hard replace Slots 1 & 2 with Slot 0
-                # Original script behavior: target_features = source_features
-                # No blending (1-w), just pure overwrite.
-                source_features = hidden_states[:source_batch_size]
-                hidden_states[source_batch_size:] = source_features.repeat(2, 1, 1, 1)
-
-            else:
-                # STANDARD PATH (When not in injection schedule)
-                hidden_states = self.norm1(input_tensor)
-                hidden_states = self.nonlinearity(hidden_states)
-                if self.upsample is not None:
-                    hidden_states = self.upsample(hidden_states)
-                elif self.downsample is not None:
-                    hidden_states = self.downsample(hidden_states)
-                
-                hidden_states = self.conv1(hidden_states)
-                if temb is not None:
-                    t_p = self.time_emb_proj(self.nonlinearity(temb))[:, :, None, None]
-                    if self.time_embedding_norm == "default":
-                        hidden_states = hidden_states + t_p
-                    elif self.time_embedding_norm == "scale_shift":
-                        scale, shift = torch.chunk(t_p, 2, dim=1)
-                        hidden_states = hidden_states * (1 + scale) + shift
-
-                hidden_states = self.norm2(hidden_states)
-                hidden_states = self.nonlinearity(hidden_states)
-                hidden_states = self.dropout(hidden_states)
-                hidden_states = self.conv2(hidden_states)
-
-            # Skip Connection (Crucial for shape preservation)
             if self.conv_shortcut is not None:
                 input_tensor = self.conv_shortcut(input_tensor)
 
-            return (input_tensor + hidden_states) / self.output_scale_factor
+            output_tensor = (input_tensor + hidden_states) / self.output_scale_factor
+
+            return output_tensor
 
         return forward
 
-    # Application logic
+    # conv_module = model.unet.up_blocks[1].resnets[1]
+    # conv_module.forward = conv_forward(conv_module)
+    # setattr(conv_module, 'injection_schedule', injection_schedule)
+    
     res_dict = {1: [0, 1, 2], 2: [0, 1, 2]}
     for res in res_dict:
         for block in res_dict[res]:
-            module = model.unet.up_blocks[res].resnets[block]
-            module.forward = conv_forward(module)
-            setattr(module, 'injection_schedule', injection_schedule)
+            conv_module = model.unet.up_blocks[res].resnets[block]
+    
+            conv_module.forward = conv_forward(conv_module)
+  
+            setattr(conv_module, 'injection_schedule', injection_schedule)
+
         

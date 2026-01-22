@@ -115,6 +115,7 @@ def run(opt):
     style_path = get_file_list(opt.style_path)
 
     is_tileable = opt.is_tileable
+    is_attention = opt.is_attention
     out_size = opt.out_size
     pro_size = opt.pro_size
     gen_normal = opt.gen_normal
@@ -968,7 +969,7 @@ if __name__ == "__main__":
     parser.add_argument('--out_size',type=int, default=2048, help="Output image size")
     parser.add_argument('--keep_aspect_ratio',type=str_to_bool, default=True,help="Keep original aspect ratio of content image")
     parser.add_argument('--pro_size',type=int, default=512,help="size of default output and the image being processed")
-    parser.add_argument('--attention_weight',type=float, default=0.5,help="weight attention injection")
+    parser.add_argument('--is_attention',type=str_to_bool, default=True,help="attention injection")
     parser.add_argument('--conv_weight',type=float, default=1.0,help="weight convolution injection")
     parser.add_argument('--is_preview',type=str_to_bool, default=False,help="Preview mode")
 
