@@ -115,7 +115,8 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             k = self.to_k(x)
             v = self.to_v(encoder_hidden_states if is_cross else x)
 
-            w = attention_weight
+            w_structure = attention_weight
+            w_color = attention_weight * 0.8
 
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
                 
