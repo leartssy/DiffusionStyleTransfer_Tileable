@@ -104,64 +104,45 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
         else:
             to_out = self.to_out
 
+        def sa_forward(self):
+        to_out = self.to_out
+        if type(to_out) is torch.nn.modules.container.ModuleList:
+            to_out = self.to_out[0]
+        else:
+            to_out = self.to_out
+
         def forward(x, encoder_hidden_states=None, attention_mask=None):
             batch_size, sequence_length, dim = x.shape
             h = self.heads
 
             is_cross = encoder_hidden_states is not None
             encoder_hidden_states = encoder_hidden_states if is_cross else x
+            if not is_cross and self.injection_schedule is not None and (
+                    self.t in self.injection_schedule or self.t == 1000):
+                q = self.to_q(x)
+                k = self.to_k(encoder_hidden_states)
 
+                source_batch_size = int(q.shape[0] // 2)
+                # inject unconditional
+                q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
+                k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
+                # inject conditional
+                q[2 * source_batch_size:] = q[:source_batch_size] 
+                k[2 * source_batch_size:] = k[:source_batch_size]
 
-            if not is_cross and self.injection_schedule is not None and attention_weight > 0:
-                if self.t in self.injection_schedule or self.t == 1000:
-                    
-                    q = self.to_q(x)
-                    k = self.to_k(encoder_hidden_states)
-                    
-                    source_batch_size = int(q.shape[0] // 2)
-                    # blended attention injection
-
-                    # inject unconditional
-                    q[source_batch_size:2 * source_batch_size] = q[:source_batch_size] 
-                    k[source_batch_size:2 * source_batch_size] = k[:source_batch_size] 
-                    #q[source_batch_size:2 * source_batch_size] = (1 - current_weight) * q[source_batch_size:2 * source_batch_size] + current_weight * q[:source_batch_size]
-                    #k[source_batch_size:2 * source_batch_size] = (1 - current_weight) * k[source_batch_size:2 * source_batch_size] + current_weight * k[:source_batch_size]
-                    # inject conditional
-                    #q[2 * source_batch_size:] = (1 - current_weight) * q[2 * source_batch_size:] +current_weight * q[:source_batch_size]
-                    #k[2 * source_batch_size:] = (1 - current_weight) * k[2 * source_batch_size:] + current_weight * k[:source_batch_size]
-                    q[2 * source_batch_size:] = q[:source_batch_size] 
-                    k[2 * source_batch_size:] = k[:source_batch_size]
-
-                    q = self.head_to_batch_dim(q)
-                    k = self.head_to_batch_dim(k)
-                    v = self.to_v(encoder_hidden_states)
-                    v = self.head_to_batch_dim(v)
-                #else:
-                    #source_batch_size = int(q.shape[0] // 3)
-                    
-                    # Define your slices clearly
-                    #uncond_slice = slice(source_batch_size, 2 * source_batch_size)
-                    #cond_slice   = slice(2 * source_batch_size, None)
-
-                    # 1. Inject into Unconditional stream
-                    #k[uncond_slice] = (1 - current_weight) * k[uncond_slice] + current_weight * k[:source_batch_size]
-                    #v[uncond_slice] = (1 - current_weight) * v[uncond_slice] + current_weight * v[:source_batch_size]
-                    
-                    # 2. Inject into Conditional stream
-                    #k[cond_slice] = (1 - current_weight) * k[cond_slice] + current_weight * k[:source_batch_size]
-                    #v[cond_slice] = (1 - current_weight) * v[cond_slice] + current_weight * v[:source_batch_size]
-
-            #q = self.head_to_batch_dim(q)
-            #k = self.head_to_batch_dim(k)
-            #v = self.head_to_batch_dim(v)
+                q = self.head_to_batch_dim(q)
+                k = self.head_to_batch_dim(k)
+                v = self.to_v(encoder_hidden_states)
+                v = self.head_to_batch_dim(v)
 
 
             else :
-                
-                v = self.to_v(encoder_hidden_states)
+                q = self.to_q(x)
+                k = self.to_k(x)
+                v = self.to_v(x)
                 w = 0.8
                 source_batch_size = int(q.shape[0] // 3)
-                第一部分content第二部分无条件的第三部分有条件的
+                #第一部分content第二部分无条件的第三部分有条件的
                 # inject unconditional
                 k[source_batch_size:2 * source_batch_size] = k[:source_batch_size]
                 v[source_batch_size:2 * source_batch_size] = v[:source_batch_size]
