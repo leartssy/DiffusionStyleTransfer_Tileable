@@ -969,7 +969,7 @@ if __name__ == "__main__":
     parser.add_argument('--keep_aspect_ratio',type=str_to_bool, default=True,help="Keep original aspect ratio of content image")
     parser.add_argument('--pro_size',type=int, default=512,help="size of default output and the image being processed")
     parser.add_argument('--attention_weight',type=float, default=0.5,help="weight attention injection")
-    parser.add_argument('--conv_weight',type=float, default=1.0,help="weight convolution injection")
+    parser.add_argument('--conv_weight',type=float, default=0.8,help="weight convolution injection")
     parser.add_argument('--is_preview',type=str_to_bool, default=False,help="Preview mode")
 
 
