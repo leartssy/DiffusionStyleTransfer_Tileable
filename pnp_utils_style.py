@@ -115,8 +115,7 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
             k = self.to_k(x)
             v = self.to_v(encoder_hidden_states if is_cross else x)
 
-            w_structure = attention_weight
-            w_color = attention_weight * 0.8
+            w = attention_weight
 
             if not is_cross and self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
                 
@@ -125,8 +124,8 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                 k[source_batch_size:2*source_batch_size] = k[:source_batch_size]
                 
                 # Slot 2 (Style): Weighted Blend
-                q[2*source_batch_size:] = (1 - w_structure) * q[2*source_batch_size:] + w_structure * q[:source_batch_size]
-                k[2*source_batch_size:] = (1 - w_structure) * k[2*source_batch_size:] + w_structure * k[:source_batch_size]
+                q[2*source_batch_size:] = (1 - w) * q[2*source_batch_size:] + w * q[:source_batch_size]
+                k[2*source_batch_size:] = (1 - w) * k[2*source_batch_size:] + w * k[:source_batch_size]
             else:
                 # --- NON-INJECTION PHASE (Color/Texture) ---
                 # Slot 1 (Uncond): Hard copy
@@ -135,8 +134,8 @@ def register_attention_control_efficient(model, injection_schedule, attention_we
                 
                 # Slot 2 (Style): Weighted Blend
                 # Keeping Q unique here (no blend) is what allows color transfer
-                k[2*source_batch_size:] = (1 - w_color) * k[2*source_batch_size:] + w_color * k[:source_batch_size]
-                v[2*source_batch_size:] = (1 - w_color) * v[2*source_batch_size:] + w_color * v[:source_batch_size]
+                k[2*source_batch_size:] = (1 - w) * k[2*source_batch_size:] + w * k[:source_batch_size]
+                v[2*source_batch_size:] = (1 - w) * v[2*source_batch_size:] + w * v[:source_batch_size]
 
             q, k, v = map(self.head_to_batch_dim, (q, k, v))
 
