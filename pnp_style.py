@@ -344,7 +344,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             # expand the latents if doing classifier free guidance
             t_raw = t.item() if hasattr(t, 'item') else t
             t_idx = int(t_raw)
-            latent_index = min(t_idx // (1000 // self.config.ddpm_steps), 249)
+            latent_index = min(t_idx // (1000 // 250), 249)
 
             register_time(self, t_idx)
             do_classifier_free_guidance = guidance_scale > 1.0
