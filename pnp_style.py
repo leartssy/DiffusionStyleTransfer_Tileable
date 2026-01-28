@@ -345,12 +345,6 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             # expand the latents if doing classifier free guidance
             t_scaled = (t // 4).int().item()
 
-            if i % 5 == 0 or i >= switch_step - 1:
-                phase = "CONTENT" if i < switch_step else "STYLE"
-                # Check if the UNet hooks are active for this step
-                hooks_active = "Active" if t_scaled in content_step else "Off"
-                print(f"DEBUG: Step {i}/{num_inference_steps} | Phase: {phase} | Mapped Index: {t_scaled} | Hooks: {hooks_active}")
-
             register_time(self, t_scaled)
             do_classifier_free_guidance = guidance_scale > 1.0
             
@@ -361,8 +355,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             # 2. Move to device and convert to .half() immediately
             if t in content_step:
                 source_lat = content_latents[t_scaled].unsqueeze(0)
+                print("Content injection")
             elif i < style_stop_index:
                 source_lat = style_latents[t_scaled].unsqueeze(0)
+                print("Style injection")
                 # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
