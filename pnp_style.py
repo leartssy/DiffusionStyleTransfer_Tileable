@@ -339,7 +339,6 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         loss_fn_lpips = lpips.LPIPS(net='vgg').to(device).half()
         clip_score_fn = CLIPScore(model_name_or_path="openai/clip-vit-base-patch32").to(device)    
         
-        switch_step = int(num_inference_steps * (1 - self.config.alpha))
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
