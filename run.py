@@ -308,6 +308,8 @@ def run(opt):
         print("Enabling circular padding for tileability...")
         blip_diffusion_pipe.unet = make_model_circular(blip_diffusion_pipe.unet)
         blip_diffusion_pipe.vae = patch_vae_circular(blip_diffusion_pipe.vae)
+        if hasattr(blip_diffusion_pipe, "controlnet"):
+            blip_diffusion_pipe.controlnet = make_model_circular(blip_diffusion_pipe.controlnet)
         pnp = PNP(blip_diffusion_pipe, opt)
     
     base_res_path = []
@@ -319,8 +321,23 @@ def run(opt):
             #timer
             start_gen = time.time()
 
-            generated_images_list = pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
+            #normal
+            control_img = None
+            if opt.control_normal_path:
+                if os.path.exists(opt.control_normal_path):
+                    print(f"[INFO] Using manual normal map for ControlNet: {opt.control_normal_path}")
+                    control_img = Image.open(opt.control_normal_path).convert("RGB")
+                    # Resize to match the processing resolution (e.g., 512x512)
+                    control_img = control_img.resize((opt.pro_size, opt.pro_size), Image.LANCZOS)
+                else:
+                    print(f"[WARNING] Manual normal map not found at {opt.control_normal_path}. Skipping.")
+
+            print(f"Transferring style from {style_file.name} to {content_file.name}")
+
+
+            generated_images_list = pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file,control_image=control_img)
             generated_image_pil = generated_images_list[0]
+            
             torch.cuda.empty_cache()
             #preserve alpha
             content_path_str = str(content_file)
@@ -972,7 +989,8 @@ if __name__ == "__main__":
     parser.add_argument('--is_attention',type=str_to_bool, default=True,help="attention injection")
     parser.add_argument('--conv_weight',type=float, default=1.0,help="weight convolution injection")
     parser.add_argument('--is_preview',type=str_to_bool, default=False,help="Preview mode")
-
+    # In run.py inside the main block
+    parser.add_argument('--control_normal_path', type=str, default=None, help="Path to the folder containing UV Normal Maps")
 
     
 

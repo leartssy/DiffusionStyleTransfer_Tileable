@@ -15,6 +15,8 @@ import argparse
 from pathlib import Path
 from pnp_utils_style import *
 import torchvision.transforms as T
+import cv2
+import numpy as np
 
 
 def get_timesteps(scheduler, num_inference_steps, strength, device):
@@ -26,6 +28,14 @@ def get_timesteps(scheduler, num_inference_steps, strength, device):
 
     return timesteps, num_inference_steps - t_start
 
+def dilate_uv_map(image_path, iterations=5):
+    img = cv2.imread(image_path)
+    #create mask where edges to black background
+    mask = (img.sum(axis=-1)>0).astype(np.uint8) * 255
+    kernel = np.ones((3,3), np.uint8)
+    #bleed colors outwards
+    dilated = cv2.dilate(img,kernel, iterations=iterations)
+    return dilated
 
 class Preprocess(nn.Module):
     def __init__(self, blip_diffusion_pipe, device, scheduler=None, sd_version='2.0', hf_key=None):

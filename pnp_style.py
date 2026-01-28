@@ -5,6 +5,7 @@ from diffusers.pipelines.blip_diffusion.pipeline_blip_diffusion import EXAMPLE_D
 from diffusers.pipelines.pipeline_utils import ImagePipelineOutput
 from diffusers.utils import load_image
 from diffusers.utils.doc_utils import replace_example_docstring
+from diffusers import ControlNetModel
 
 import numpy as np
 import torch
@@ -24,6 +25,7 @@ from pnp_utils_style import *
 from pnp_utils_style import register_time
 import time
 import torch.nn.functional as F
+from pnp_utils_style import make_model_circular
 
 def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
     image_pil = Image.open(image_path).convert("RGB")
@@ -54,6 +56,18 @@ class PNP(nn.Module):
         pipe.__class__ = BLIP_With_Textile
         #use custom Blip class instead
         self.pipe = pipe
+
+        #add controlnet
+        from diffusers import ControlNetModel
+        # Load the normal map controlnet
+        self.pipe.controlnet = ControlNetModel.from_pretrained(
+            "lllyasviel/sd-controlnet-normal", 
+            torch_dtype=torch.float16
+        ).to(self.device)
+
+        if self.pipe.controlnet is not None:
+            make_model_circular(self.pipe.controlnet)
+       
         
     
         self.pnp_attn_t = pnp_attn_t
@@ -97,7 +111,12 @@ class PNP(nn.Module):
         
         init_latents = content_latents[-1].unsqueeze(0).to(self.device).half()
 
-        
+        #get rid of seams
+        # 1. Preprocess Normal Map
+        # Make sure you load the normal map correctly
+        normal_map_pil = Image.open(normal_map_path).convert("RGB").resize((width, height))
+        # ControlNet expects a tensor normalized to [0, 1] usually, or a PIL image
+        control_image = self.image_processor.preprocess(normal_map_pil).to(self.device, dtype=torch.float16)
 
         output = self.pipe(
             content_latents,
@@ -113,6 +132,8 @@ class PNP(nn.Module):
             height=current_height,
             width=current_width,
             content_step=content_step,
+            image=control_image, # This is the ControlNet input
+            controlnet_conditioning_scale=1.0 if control_image else 0.0,
         ).images
 
         
@@ -267,6 +288,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         return_dict: bool = True,
         **kwargs # Catch-all for extra params
     ):
+        normal_map_tensor = kwargs.get("normal_map_tensor")
         device = self.unet.device
 
         reference_image = self.image_processor.preprocess(
@@ -289,6 +311,8 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             prompt_strength=prompt_strength,
             prompt_reps=prompt_reps,
         )
+        
+
         query_embeds = self.get_query_embeddings(reference_image, source_subject_category)
         text_embeddings = self.encode_prompt(query_embeds, prompt, device).half()
         do_classifier_free_guidance = guidance_scale > 1.0
@@ -346,12 +370,30 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             # Ensure final input is half precision
             latent_model_input = latent_model_input.to(dtype=torch.float16)
 
+            if normal_map_tensor is not None:
+                # Resize normal map to match CURRENT latent resolution (H*8, W*8)
+                controlnet_image = F.interpolate(normal_map_tensor, size=(target_h * 8, target_w * 8), mode="bilinear")
+                
+                # MATCH BATCH SIZE: Expand normal map to match latent_model_input batch size (3)
+                controlnet_cond = torch.cat([controlnet_image] * latent_model_input.shape[0])
+
+                down_block_res, mid_block_res = self.controlnet(
+                    latent_model_input,
+                    t,
+                    controlnet_cond=controlnet_cond, # Use the prepared/resized/batched tensor
+                    conditioning_scale=1.0,
+                    return_dict=False,
+                )
+            else:
+                down_block_res, mid_block_res = None, None
+
+            # --- UPDATE THE UNET CALL TO USE THE RESIDUALS ---
             noise_pred = self.unet(
                 latent_model_input,
                 timestep=t,
                 encoder_hidden_states=text_embeddings,
-                down_block_additional_residuals=None,
-                mid_block_additional_residual=None,
+                down_block_additional_residuals=down_block_res, # Updated from None
+                mid_block_additional_residual=mid_block_res,    # Updated from None
             )["sample"]
 
             # perform guidance
