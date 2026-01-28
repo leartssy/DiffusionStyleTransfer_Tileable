@@ -349,9 +349,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
             if t in content_step:
-                source_lat = content_latents[t].unsqueeze(0)
+                t_scaled = t//4
+                source_lat = content_latents[t_scaled].unsqueeze(0)
             elif i < style_stop_index:
-                source_lat = style_latents[t].unsqueeze(0)
+                source_lat = style_latents[t_scaled].unsqueeze(0)
                 # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
