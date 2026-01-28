@@ -352,7 +352,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             print(f"{t}")
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
-            if t in content_step:
+            if t.item() > content_step:
                 source_lat = content_latents[t_scaled].unsqueeze(0)
                 print("Content injection")
             else:
