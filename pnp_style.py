@@ -349,7 +349,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             
             #safety if style and content latents not same aspect ratio
             target_h, target_w = latents.shape[-2:] #size of current
-
+            print(f"{t}")
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
             if t in content_step:
