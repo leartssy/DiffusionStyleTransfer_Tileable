@@ -394,6 +394,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                     temp_latents = latents / self.vae.config.scaling_factor
                     decoded = self.vae.decode(temp_latents.to(self.vae.dtype), return_dict=False)[0]
                     
+                    # FIX: Ensure reference matches decoded size (e.g., 512x512)
+                    if ref_content_tensor.shape[-2:] != decoded.shape[-2:]:
+                        ref_resized = F.interpolate(ref_content_tensor, size=decoded.shape[-2:], mode="bilinear", align_corners=False)
+                    else:
+                        ref_resized = ref_content_tensor
                     # LPIPS: Current vs. ORIGINAL CONTENT (lower is better preservation)
                     # Compares generated image to original content image
                     current_lpips = loss_fn_lpips(decoded, ref_content_tensor).item()
