@@ -342,24 +342,23 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
-            t_scaled = (t // 4).int().item()
+            t_raw = t.item() if hasattr(t, 'item') else t
+            t_idx = int(t_raw)
+            latent_index = min(t_idx // (1000 // self.config.ddpm_steps), 249)
 
-            register_time(self, t_scaled)
+            register_time(self, t_idx)
             do_classifier_free_guidance = guidance_scale > 1.0
             
             #safety if style and content latents not same aspect ratio
             target_h, target_w = latents.shape[-2:] #size of current
-            print(f"{t}")
-           # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
-            # 2. Move to device and convert to .half() immediately
-            t_val = t//4
-            if t_val >= content_step:
-                source_lat = content_latents[t].unsqueeze(0)
-                print(f"Step {i} (t={t_val}): Content injection")
+            print(f"{t_raw}")
+           
+            if t_raw >= content_step:
+                source_lat = content_latents[latent_index].unsqueeze(0)
+                print(f"Step {i} | Timestep {t_raw} -> Using Latent Index {latent_index} (CONTENT)")
             else:
-                source_lat = style_latents[t].unsqueeze(0)
-                print(f"Step {i} (t={t_val}): Style injection")
-                # Handle aspect ratio safety
+                source_lat = style_latents[latent_index].unsqueeze(0)
+                print(f"Step {i} | Timestep {t_raw} -> Using Latent Index {latent_index} (STYLE)")                # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
     
