@@ -352,7 +352,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             print(f"{t}")
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
-            t_val = t.item() if hasattr(t, 'item') else t
+            t_val = t//4
             if t_val >= content_step:
                 source_lat = content_latents[t].unsqueeze(0)
                 print(f"Step {i} (t={t_val}): Content injection")
