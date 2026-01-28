@@ -354,10 +354,10 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             # 2. Move to device and convert to .half() immediately
             t_val = t.item() if hasattr(t, 'item') else t
             if t_val >= content_step:
-                source_lat = content_latents[t_scaled].unsqueeze(0)
+                source_lat = content_latents[t].unsqueeze(0)
                 print(f"Step {i} (t={t_val}): Content injection")
             else:
-                source_lat = style_latents[t_scaled].unsqueeze(0)
+                source_lat = style_latents[t].unsqueeze(0)
                 print(f"Step {i} (t={t_val}): Style injection")
                 # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
