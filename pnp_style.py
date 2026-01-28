@@ -111,11 +111,14 @@ class PNP(nn.Module):
         init_latents = content_latents[-1].unsqueeze(0).to(self.device).half()
 
         #get rid of seams
-        # 1. Preprocess Normal Map
-        # Make sure you load the normal map correctly
-        normal_map_pil = Image.open(normal_map_path).convert("RGB").resize((width, height))
-        # ControlNet expects a tensor normalized to [0, 1] usually, or a PIL image
-        control_image = self.image_processor.preprocess(normal_map_pil).to(self.device, dtype=torch.float16)
+        # Replace line 116-118 with this:
+        if control_image is not None:
+            # Use the PIL image passed from run.py
+            normal_map_pil = control_image
+            # ControlNet expects a tensor normalized to [0, 1]
+            control_image_tensor = self.image_processor.preprocess(normal_map_pil).to(self.device, dtype=torch.float16)
+        else:
+            control_image_tensor = None
 
         output = self.pipe(
             content_latents,
@@ -131,8 +134,8 @@ class PNP(nn.Module):
             height=current_height,
             width=current_width,
             content_step=content_step,
-            image=control_image, # This is the ControlNet input
-            controlnet_conditioning_scale=1.0 if control_image else 0.0,
+            image=control_image_tensor, # This is the ControlNet input
+            controlnet_conditioning_scale=1.0 if control_image_tensor else 0.0,
         ).images
 
         
