@@ -338,15 +338,20 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
         loss_fn_lpips = lpips.LPIPS(net='vgg').to(device).half()
         clip_score_fn = CLIPScore(model_name_or_path="openai/clip-vit-base-patch32").to(device)    
+        
+        switch_step = int(num_inference_steps * (1 - self.config.alpha))
+
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
-            t_scaled = t//4
+            t_scaled = (t // 4).int().item()
 
-            if i % 5 == 0:
-                is_injecting = "YES" if t_scaled in content_step else "NO"
-                print(f"DEBUG: Step {i} | Raw t: {t:.1f} | Mapped Index: {t_scaled} | Injecting? {is_injecting}")
+            if i % 5 == 0 or i >= switch_step - 1:
+                phase = "CONTENT" if i < switch_step else "STYLE"
+                # Check if the UNet hooks are active for this step
+                hooks_active = "Active" if t_scaled in content_step else "Off"
+                print(f"DEBUG: Step {i}/{num_inference_steps} | Phase: {phase} | Mapped Index: {t_scaled} | Hooks: {hooks_active}")
 
-            register_time(self, t_scaled.item())
+            register_time(self, t_scaled)
             do_classifier_free_guidance = guidance_scale > 1.0
             
             #safety if style and content latents not same aspect ratio
@@ -354,7 +359,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
-            if t_scaled in content_step:
+            if t in content_step:
                 source_lat = content_latents[t_scaled].unsqueeze(0)
             elif i < style_stop_index:
                 source_lat = style_latents[t_scaled].unsqueeze(0)
