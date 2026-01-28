@@ -24,6 +24,7 @@ from pnp_utils_style import *
 from pnp_utils_style import register_time
 import time
 import torch.nn.functional as F
+import evaluate
 
 def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
     image_pil = Image.open(image_path).convert("RGB")
@@ -70,7 +71,7 @@ class PNP(nn.Module):
         return self.qk_injection_timesteps
     
 
-    def run_pnp(self, content_latents, style_latents, style_file, content_fn="content", style_fn="style"):
+    def run_pnp(self, content_latents, style_latents, content_file, style_file, content_fn="content", style_fn="style"):
         
         all_times = []
         
@@ -88,6 +89,12 @@ class PNP(nn.Module):
         current_width = lat_w * 8
         cond_image = load_img1(self,style_file, pro_size=self.config.pro_size, 
                                keep_aspect_ratio=self.config.keep_aspect_ratio)
+        
+        #evaluate metrics
+        # Load the actual content image for LPIPS evaluation
+        content_image_pil = load_img1(self, content_file, pro_size=self.config.pro_size, 
+                                    keep_aspect_ratio=self.config.keep_aspect_ratio)
+        
         guidance_scale = self.config.guidance_scale #previously 7.5
         #textile_guidance = self.config.textile_guidance_scale
         is_tileable = self.config.is_tileable
@@ -103,10 +110,11 @@ class PNP(nn.Module):
             content_latents,
             style_latents,
             text_prompt_input,
-            cond_image,
             cond_subject,
             tgt_subject,
+            reference_image=cond_image,
             guidance_scale=guidance_scale,
+            content_image=content_image_pil,
             num_inference_steps=num_inference_steps,
             neg_prompt=negative_prompt,
             latents=init_latents,
@@ -251,6 +259,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_latents,
         prompt: List[str],
         reference_image: PIL.Image.Image,
+        content_image,
         source_subject_category: List[str],
         target_subject_category: List[str],
         latents: Optional[torch.FloatTensor] = None,
@@ -315,9 +324,20 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         self.scheduler.set_timesteps(num_inference_steps)
 
         style_stop_index = int(num_inference_steps)
+
+        #evaluate metrics
+        
+        # 1. Prepare Content Reference for LPIPS (needs [-1, 1] tensor)
+        ref_content_tensor = self.image_processor.preprocess(
+            content_image, image_mean=self.config.mean, image_std=self.config.std, return_tensors="pt"
+        )["pixel_values"].to(device).half()
+        style_image_pil = reference_image
+
+        lpips_metric = evaluate.load("lpips")
+        clip_metric = evaluate.load("clip_score")
     
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
-            # expand the latents if we are doing classifier free guidance
+            # expand the latents if doing classifier free guidance
             register_time(self, t.item())
             do_classifier_free_guidance = guidance_scale > 1.0
             
@@ -366,6 +386,24 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 latents,
             )["prev_sample"]
             
+            #evaluate every 10 steps
+            if i % 10 ==0:
+                with torch.no_grad():
+                    temp_latents = latents / self.vae.config.scaling_factor
+                    decoded = self.vae.decode(temp_latents.to(self.vae.dtype), return_dict=False)[0]
+                    
+                    # LPIPS: Current vs. ORIGINAL CONTENT (lower is better preservation)
+                    res_lpips = lpips_metric.compute(predictions=decoded, references=ref_content_tensor)
+                    current_lpips = res_lpips['lpips'][0]
+
+                    # CLIP: Current vs. ORIGINAL STYLE (higher is better fidelity)
+                    decoded_uint8 = ((decoded.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
+                    res_clip = clip_metric.compute(predictions=decoded_uint8, references=[style_image_pil])
+                    current_clip = res_clip['clip_score']
+
+                    print(f"Step {i} | Content (LPIPS) ↓: {current_lpips:.4f} | Style (CLIP) ↑: {current_clip:.4f}")
+                    
+
         latents = (latents).half()
         image = self.vae.decode(latents / self.vae.config.scaling_factor, return_dict=False)[0]
         image = self.image_processor.postprocess(image, output_type=output_type)

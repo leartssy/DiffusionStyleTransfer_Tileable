@@ -319,7 +319,7 @@ def run(opt):
             #timer
             start_gen = time.time()
 
-            generated_images_list = pnp.run_pnp(content_latents, style_latents, style_file, content_fn=content_file, style_fn=style_file)
+            generated_images_list = pnp.run_pnp(content_latents, style_latents, content_file, style_file, content_fn=content_file, style_fn=style_file)
             generated_image_pil = generated_images_list[0]
             torch.cuda.empty_cache()
             #preserve alpha
