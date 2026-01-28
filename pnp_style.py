@@ -354,11 +354,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             print(f"{t_raw}")
            
             if t_raw >= content_step:
-                source_lat = content_latents[latent_index].unsqueeze(0)
-                print(f"Step {i} | Timestep {t_raw} -> Using Latent Index {latent_index} (CONTENT)")
+                source_lat = content_latents[t_raw].unsqueeze(0)
+                print(f"Step {i} | Timestep {t_raw} -> Using Latent Index {t_raw} (CONTENT)")
             else:
-                source_lat = style_latents[latent_index].unsqueeze(0)
-                print(f"Step {i} | Timestep {t_raw} -> Using Latent Index {latent_index} (STYLE)")                # Handle aspect ratio safety
+                source_lat = style_latents[t_raw].unsqueeze(0)
+                print(f"Step {i} | Timestep {t_raw} -> Using Latent Index {t_raw} (STYLE)")                # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
     
