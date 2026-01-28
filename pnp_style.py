@@ -107,14 +107,14 @@ class PNP(nn.Module):
         
 
         output = self.pipe(
-            content_latents,
-            style_latents,
-            text_prompt_input,
-            cond_subject,
-            tgt_subject,
+            content_latents=content_latents,
+            style_latents=style_latents,
+            prompt=text_prompt_input,
             reference_image=cond_image,
-            guidance_scale=guidance_scale,
             content_image=content_image_pil,
+            source_subject_category=cond_subject,
+            target_subject_category=tgt_subject,
+            guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
             neg_prompt=negative_prompt,
             latents=init_latents,
