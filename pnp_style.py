@@ -116,7 +116,7 @@ class PNP(nn.Module):
             # Use the PIL image passed from run.py
             normal_map_pil = control_image
             # ControlNet expects a tensor normalized to [0, 1]
-            control_image_tensor = self.image_processor.preprocess(normal_map_pil).to(self.device, dtype=torch.float16)
+            control_image_tensor = self.pipe.image_processor.preprocess(normal_map_pil).to(self.device, dtype=torch.float16)
         else:
             control_image_tensor = None
 
