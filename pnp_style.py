@@ -340,7 +340,8 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         clip_score_fn = CLIPScore(model_name_or_path="openai/clip-vit-base-patch32").to(device)    
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
-            register_time(self, t.item())
+            t_scaled = t//4
+            register_time(self, t_scaled.item())
             do_classifier_free_guidance = guidance_scale > 1.0
             
             #safety if style and content latents not same aspect ratio
@@ -349,7 +350,6 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
             if t in content_step:
-                t_scaled = t//4
                 source_lat = content_latents[t_scaled].unsqueeze(0)
             elif i < style_stop_index:
                 source_lat = style_latents[t_scaled].unsqueeze(0)
