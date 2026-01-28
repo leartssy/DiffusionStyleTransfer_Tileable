@@ -79,7 +79,7 @@ class PNP(nn.Module):
         all_times = []
         
         pnp_f_t = int(self.config.ddpm_steps * self.config.alpha)
-        pnp_attn_t = int(self.config.ddpm_steps * self.config.alpha)
+        pnp_attn_t = pnp_f_t
         
 
         content_step = self.init_pnp(conv_injection_t=pnp_f_t, qk_injection_t=pnp_attn_t)
@@ -123,7 +123,7 @@ class PNP(nn.Module):
             latents=init_latents,
             height=current_height,
             width=current_width,
-            content_step=pnp_attn_t,
+            content_step=content_step,
         ).images
 
         
