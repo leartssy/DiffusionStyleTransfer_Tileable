@@ -66,6 +66,10 @@ class PNP(nn.Module):
 
         if self.pipe.controlnet is not None:
             make_model_circular(self.pipe.controlnet)
+
+        if self.config.is_tileable:
+            print("Patching VAE for seamless decoding...")
+            patch_vae_circular(self.pipe.vae)
        
         
     
@@ -116,7 +120,10 @@ class PNP(nn.Module):
             # Use the PIL image passed from run.py
             normal_map_pil = control_image
             # ControlNet expects a tensor normalized to [0, 1]
-            control_image_tensor = self.pipe.image_processor.preprocess(normal_map_pilreturn_tensors="pt").pixel_values.to(self.device, dtype=torch.float16)
+            control_image_tensor = self.pipe.image_processor.preprocess(
+                normal_map_pil, 
+                return_tensors="pt"
+            ).pixel_values.to(self.device, dtype=torch.float16)
         else:
             control_image_tensor = None
 
@@ -290,7 +297,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         return_dict: bool = True,
         **kwargs # Catch-all for extra params
     ):
-        normal_map_tensor = kwargs.get("normal_map_tensor")
+        normal_map_tensor = kwargs.get("image")
         device = self.unet.device
 
         reference_image = self.image_processor.preprocess(
