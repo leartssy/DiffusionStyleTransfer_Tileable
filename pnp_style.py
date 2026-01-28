@@ -326,7 +326,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
         self.scheduler.set_timesteps(num_inference_steps)
 
-        style_stop_index = int(num_inference_steps)
+        #style_stop_index = int(num_inference_steps)
 
         #evaluate metrics
         
@@ -355,15 +355,13 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             if t in content_step:
                 source_lat = content_latents[t_scaled].unsqueeze(0)
                 print("Content injection")
-            elif i < style_stop_index:
+            else:
                 source_lat = style_latents[t_scaled].unsqueeze(0)
                 print("Style injection")
                 # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
-            else:
-                # Fallback: if no source is provided, use current latents to maintain batch size
-                source_lat = latents
+    
 
             # 3. Build the 3-batch: [Source, Unconditional, Conditional]
             if do_classifier_free_guidance:
