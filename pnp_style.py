@@ -394,14 +394,12 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                     temp_latents = latents / self.vae.config.scaling_factor
                     decoded = self.vae.decode(temp_latents.to(self.vae.dtype), return_dict=False)[0]
                     
-                    # FIX: Ensure reference matches decoded size (e.g., 512x512)
-                    if ref_content_tensor.shape[-2:] != decoded.shape[-2:]:
-                        ref_resized = F.interpolate(ref_content_tensor, size=decoded.shape[-2:], mode="bilinear", align_corners=False)
-                    else:
-                        ref_resized = ref_content_tensor
+                    # 1. RESIZE REFERENCE TO MATCH DECODED (512x512)
+                    # We use F.interpolate (from torch.nn.functional) to stretch the 224 reference
+                    ref_resized = F.interpolate(ref_content_tensor, size=decoded.shape[-2:], mode="bilinear", align_corners=False)
                     # LPIPS: Current vs. ORIGINAL CONTENT (lower is better preservation)
                     # Compares generated image to original content image
-                    current_lpips = loss_fn_lpips(decoded, ref_content_tensor).item()
+                    current_lpips = loss_fn_lpips(decoded, ref_resized).item()
 
                     # CLIP: Current vs. ORIGINAL STYLE (higher is better fidelity)
                     decoded_uint8 = ((decoded.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
