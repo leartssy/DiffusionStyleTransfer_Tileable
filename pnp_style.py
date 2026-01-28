@@ -142,7 +142,7 @@ class PNP(nn.Module):
             width=current_width,
             content_step=content_step,
             image=control_image_tensor, # This is the ControlNet input
-            controlnet_conditioning_scale=1.0 if control_image_tensor else 0.0,
+            controlnet_conditioning_scale=1.0 if control_image_tensor is not None else 0.0,
         ).images
 
         
