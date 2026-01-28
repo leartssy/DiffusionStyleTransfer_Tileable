@@ -337,8 +337,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_image_pil = reference_image
 
         loss_fn_lpips = lpips.LPIPS(net='vgg').to(device).half()
-        clip_metric = evaluate.load("clip_score")
-    
+        clip_score_fn = CLIPScore(model_name_or_path="openai/clip-vit-base-patch32").to(device)    
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
             register_time(self, t.item())
@@ -401,8 +400,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
 
                     # CLIP: Current vs. ORIGINAL STYLE (higher is better fidelity)
                     decoded_uint8 = ((decoded.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
-                    res_clip = clip_metric.compute(predictions=decoded_uint8, references=[style_image_pil])
-                    current_clip = res_clip['clip_score']
+                    current_clip = clip_score_fn(decoded_uint8, ["a style reference image"]).item()
 
                     print(f"Step {i} | Content (LPIPS) ↓: {current_lpips:.4f} | Style (CLIP) ↑: {current_clip:.4f}")
                     
