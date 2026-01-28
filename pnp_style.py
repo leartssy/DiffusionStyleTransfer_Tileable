@@ -25,7 +25,6 @@ from pnp_utils_style import *
 from pnp_utils_style import register_time
 import time
 import torch.nn.functional as F
-from run import make_model_circular
 
 def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
     image_pil = Image.open(image_path).convert("RGB")

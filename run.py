@@ -26,7 +26,7 @@ import torchvision.transforms as T
 from preprocess_style import get_timesteps, Preprocess
 from pnp_style import PNP, BLIP, BLIP_With_Textile
 import time
-
+from pnp_utils_style import *
 
 import torch.nn as nn
 
@@ -48,38 +48,7 @@ def get_resolution_folder(image_path, pro_size, keep_aspect_ratio):
     target_w, target_h = (target_w // 8) * 8, (target_h // 8) * 8
     return f"{target_w}x{target_h}"
 
-def make_model_circular(unet_model):
-    """
-    Patches a U-Net to use explicit circular padding on both axes.
-    """
-    count = 0
-    for name, module in unet_model.named_modules():
-        if isinstance(module, nn.Conv2d):
-            # Only patch layers with standard padding (usually 1 or 3)
-            if isinstance(module.padding, (tuple, int)):
-                pad_val = module.padding if isinstance(module.padding, int) else module.padding[0]
-                
-                if pad_val > 0:
-                    # Set the mode to circular
-                    module.padding_mode = 'circular'
-                    
-                    # Force the padding to be a tuple to ensure both (H, W) are covered
-                    # This ensures the vertical axis (index 0) is explicitly handled
-                    module.padding = (pad_val, pad_val)
-                    count += 1
 
-    print(f"Circular padding explicitly enabled on {count} U-Net layers (H and W).")
-    return unet_model
-
-def patch_vae_circular(vae_model):
-    """
-    Patches the VAE decoder to prevent edge seams during image reconstruction.
-    """
-    for m in vae_model.modules():
-        if isinstance(m, nn.Conv2d):
-            m.padding_mode = 'circular'
-    print("VAE patched for circular reconstruction.")
-    return vae_model
 
 def run(opt):
     
