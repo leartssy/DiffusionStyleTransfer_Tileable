@@ -55,7 +55,7 @@ class PNP(nn.Module):
         self.device = config.device
         #old code without TexTile:use to switch without TexTile
         #self.pipe = pipe
-        pipe.__class__ = BLIP_With_Textile
+        pipe.__class__ = BLIP
         #use custom Blip class instead
         self.pipe = pipe
         
