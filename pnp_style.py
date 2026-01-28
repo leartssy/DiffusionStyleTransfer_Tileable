@@ -389,6 +389,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 down_block_res, mid_block_res = self.controlnet(
                     latent_model_input,
                     t,
+                    encoder_hidden_states=text_embeddings,
                     controlnet_cond=controlnet_cond, # Use the prepared/resized/batched tensor
                     conditioning_scale=1.0,
                     return_dict=False,
