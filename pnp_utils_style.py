@@ -111,7 +111,7 @@ def register_attention_control_efficient(model, injection_schedule, is_attention
             is_cross = encoder_hidden_states is not None
             encoder_hidden_states = encoder_hidden_states if is_cross else x
             if not is_cross and self.injection_schedule is not None and (
-                    self.t in self.injection_schedule or self.t == 1000):
+                    self.t in self.injection_schedule or self.t == 250):
                 q = self.to_q(x)
                 k = self.to_k(encoder_hidden_states)
                 
@@ -232,7 +232,7 @@ def register_conv_control_efficient(model, injection_schedule, conv_weight=0.8):
 
             hidden_states = self.dropout(hidden_states)
             hidden_states = self.conv2(hidden_states)
-            if self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 1000):
+            if self.injection_schedule is not None and (self.t in self.injection_schedule or self.t == 250):
                 source_batch_size = int(hidden_states.shape[0] // 3)
                 
                 #weigthed injection

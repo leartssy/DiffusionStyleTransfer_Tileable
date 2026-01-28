@@ -78,8 +78,8 @@ class PNP(nn.Module):
         
         all_times = []
         
-        pnp_f_t = int(self.config.ddim_steps * self.config.alpha)
-        pnp_attn_t = int(self.config.ddim_steps * self.config.alpha)
+        pnp_f_t = int(self.config.ddpm_steps * self.config.alpha)
+        pnp_attn_t = int(self.config.ddpm_steps * self.config.alpha)
         
 
         content_step = self.init_pnp(conv_injection_t=pnp_f_t, qk_injection_t=pnp_attn_t)
@@ -349,9 +349,9 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
            # 1. Use 'i' for indexing (step count) instead of 't' (raw timestep)
             # 2. Move to device and convert to .half() immediately
             if t in content_step:
-                source_lat = content_latents[i].unsqueeze(0)
+                source_lat = content_latents[t].unsqueeze(0)
             elif i < style_stop_index:
-                source_lat = style_latents[i].unsqueeze(0)
+                source_lat = style_latents[t].unsqueeze(0)
                 # Handle aspect ratio safety
                 if source_lat.shape[-2:] != (target_h, target_w):
                     source_lat = F.interpolate(source_lat, size=(target_h, target_w), mode="bilinear")
