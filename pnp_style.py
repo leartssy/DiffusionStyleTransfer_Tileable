@@ -341,6 +341,11 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
             t_scaled = t//4
+
+            if i % 5 == 0:
+                is_injecting = "YES" if t_scaled in content_step else "NO"
+                print(f"DEBUG: Step {i} | Raw t: {t:.1f} | Mapped Index: {t_scaled} | Injecting? {is_injecting}")
+
             register_time(self, t_scaled.item())
             do_classifier_free_guidance = guidance_scale > 1.0
             
