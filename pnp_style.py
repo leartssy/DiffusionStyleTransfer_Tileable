@@ -78,8 +78,8 @@ class PNP(nn.Module):
         
         all_times = []
         
-        pnp_f_t = int(self.config.ddpm_steps * self.config.alpha)
-        pnp_attn_t = int(self.config.ddpm_steps * self.config.alpha)
+        pnp_f_t = int(self.config.ddpm_steps * self.config.alpha /4)
+        pnp_attn_t = int(self.config.ddpm_steps * self.config.alpha /4)
         
 
         content_step = self.init_pnp(conv_injection_t=pnp_f_t, qk_injection_t=pnp_attn_t)
