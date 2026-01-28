@@ -83,7 +83,7 @@ class PNP(nn.Module):
         return self.qk_injection_timesteps
     
 
-    def run_pnp(self, content_latents, style_latents, style_file, content_fn="content", style_fn="style"):
+    def run_pnp(self, content_latents, style_latents, style_file, content_fn="content", style_fn="style",control_image=None):
         
         all_times = []
         
