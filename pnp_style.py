@@ -25,6 +25,9 @@ from pnp_utils_style import register_time
 import time
 import torch.nn.functional as F
 import evaluate
+import lpips
+import torchmetrics
+from torchmetrics.multimodal import CLIPScore
 
 def load_img1(self, image_path, pro_size=512, keep_aspect_ratio=True):
     image_pil = Image.open(image_path).convert("RGB")
@@ -333,7 +336,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         )["pixel_values"].to(device).half()
         style_image_pil = reference_image
 
-        lpips_metric = evaluate.load("lpips")
+        loss_fn_lpips = lpips.LPIPS(net='vgg').to(device).half()
         clip_metric = evaluate.load("clip_score")
     
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
@@ -393,8 +396,8 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                     decoded = self.vae.decode(temp_latents.to(self.vae.dtype), return_dict=False)[0]
                     
                     # LPIPS: Current vs. ORIGINAL CONTENT (lower is better preservation)
-                    res_lpips = lpips_metric.compute(predictions=decoded, references=ref_content_tensor)
-                    current_lpips = res_lpips['lpips'][0]
+                    # Compares generated image to original content image
+                    current_lpips = loss_fn_lpips(decoded, ref_content_tensor).item()
 
                     # CLIP: Current vs. ORIGINAL STYLE (higher is better fidelity)
                     decoded_uint8 = ((decoded.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
