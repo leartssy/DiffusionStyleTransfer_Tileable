@@ -333,7 +333,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         # 1. Prepare Content Reference for LPIPS (needs [-1, 1] tensor)
         ref_content_tensor = self.image_processor.preprocess(
             content_image, image_mean=self.config.mean, image_std=self.config.std, return_tensors="pt"
-        )["pixel_values"].to(device).float()
+        )["pixel_values"].to(device).half()
         style_image_pil = reference_image
         style_uint8 = ((reference_image.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
         style_uint8 = F.interpolate(style_uint8.float(), size=(224, 224), mode="bilinear").to(torch.uint8)
@@ -395,14 +395,13 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                 with torch.no_grad():
                     temp_latents = latents / self.vae.config.scaling_factor
                     decoded = self.vae.decode(temp_latents.to(self.vae.dtype), return_dict=False)[0]
-                    decoded = decoded.detach().float()
                     
                     # 1. RESIZE REFERENCE TO MATCH DECODED (512x512)
                     # We use F.interpolate (from torch.nn.functional) to stretch the 224 reference
                     ref_resized = F.interpolate(ref_content_tensor, size=decoded.shape[-2:], mode="bilinear", align_corners=False)
                     # LPIPS: Current vs. ORIGINAL CONTENT (lower is better preservation)
                     # Compares generated image to original content image
-                    current_lpips = loss_fn_lpips(decoded, ref_resized).mean().item()
+                    current_lpips = loss_fn_lpips(decoded, ref_resized).item()
 
                     # CLIP: Current vs. ORIGINAL STYLE (higher is better fidelity)
                     # Convert decoded image to uint8 for torchmetrics
