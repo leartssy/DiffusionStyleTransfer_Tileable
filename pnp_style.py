@@ -335,7 +335,9 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
             content_image, image_mean=self.config.mean, image_std=self.config.std, return_tensors="pt"
         )["pixel_values"].to(device).half()
         style_image_pil = reference_image
-
+        style_uint8 = ((reference_image.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
+        style_uint8 = F.interpolate(style_uint8.float(), size=(224, 224), mode="bilinear").to(torch.uint8)
+        
         loss_fn_lpips = lpips.LPIPS(net='vgg').to(device).half()
         clip_score_fn = CLIPScore(model_name_or_path="zer0int/LongCLIP-L-Diffusers").to(device)    
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
@@ -402,8 +404,9 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
                     current_lpips = loss_fn_lpips(decoded, ref_resized).item()
 
                     # CLIP: Current vs. ORIGINAL STYLE (higher is better fidelity)
+                    # Convert decoded image to uint8 for torchmetrics
                     decoded_uint8 = ((decoded.detach().cpu() + 1) * 127.5).clamp(0, 255).to(torch.uint8)
-                    current_clip = clip_score_fn(decoded_uint8, ["a style reference image"]).item()
+                    current_clip = clip_score_fn(decoded_uint8, style_uint8).item()
 
                     print(f"Step {i} | Content (LPIPS) ↓: {current_lpips:.4f} | Style (CLIP) ↑: {current_clip:.4f}")
                     
