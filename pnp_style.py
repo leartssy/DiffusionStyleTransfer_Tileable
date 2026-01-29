@@ -339,7 +339,7 @@ class BLIP_With_Textile(BlipDiffusionPipeline):
         style_uint8 = F.interpolate(style_uint8.float(), size=(224, 224), mode="bilinear").to(torch.uint8)
         
         loss_fn_lpips = lpips.LPIPS(net='vgg').to(device).half()
-        clip_score_fn = CLIPScore(model_name_or_path="zer0int/LongCLIP-L-Diffusers").to(device)    
+        clip_score_fn = CLIPScore(model_name_or_path="zer0int/LongCLIP-GmP-ViT-L-14").to(device)    
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if doing classifier free guidance
             register_time(self, t.item())
